@@ -13,46 +13,40 @@
 
 pragma solidity 0.7.6;
 
-import "../Pool.sol";
+import '../Pool.sol';
 
 contract TPool is Pool {
-
     bool _repricing = true;
 
     constructor(
         address _derivativeVault,
         address _dynamicFee,
         address _repricer,
-        uint _baseFee,
-        uint _maxFee,
-        uint _feeAmp,
+        uint256 _baseFee,
+        uint256 _maxFee,
+        uint256 _feeAmp,
         address _controller
     )
-    public Pool(_derivativeVault, _dynamicFee, _repricer, _baseFee, _maxFee, _feeAmp, _controller)
-    { }
+        public
+        Pool(_derivativeVault, _dynamicFee, _repricer, _baseFee, _maxFee, _feeAmp, _controller)
+    {}
 
     function resetTokenRecordTo(
         address token,
-        uint balance,
-        uint leverage
-    )
-    external
-    {
+        uint256 balance,
+        uint256 leverage
+    ) external {
         Record storage record = _records[token];
         record.balance = balance;
         record.leverage = leverage;
     }
 
-    function turnOffRepricing()
-    external
-    {
+    function turnOffRepricing() external {
         _repricing = false;
     }
 
-    function reprice()
-    internal override
-    {
-        if(_repricing) {
+    function reprice() internal override {
+        if (_repricing) {
             super.reprice();
         }
     }

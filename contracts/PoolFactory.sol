@@ -15,26 +15,20 @@ pragma solidity 0.7.6;
 
 // Builds new Pools, logging their addresses and providing `isPool(address) -> (bool)`
 
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "./IPoolBuilder.sol";
-import "./IPool.sol";
-import "./Color.sol";
-import "./IPausablePool.sol";
-import "./libs/complifi/registries/IAddressRegistry.sol";
+import '@openzeppelin/contracts/access/Ownable.sol';
+import './IPoolBuilder.sol';
+import './IPool.sol';
+import './Color.sol';
+import './IPausablePool.sol';
+import './libs/complifi/registries/IAddressRegistry.sol';
 
 contract PoolFactory is Bronze, Ownable {
-    event LOG_NEW_POOL(
-        address indexed caller,
-        address indexed pool
-    );
+    event LOG_NEW_POOL(address indexed caller, address indexed pool);
 
-    event LOG_BLABS(
-        address indexed caller,
-        address indexed blabs
-    );
+    event LOG_BLABS(address indexed caller, address indexed blabs);
 
     address[] internal _pools;
-    mapping(address=>bool) private _isPool;
+    mapping(address => bool) private _isPool;
 
     IPoolBuilder public _poolBuilder;
     address public _dynamicFee;
@@ -51,31 +45,27 @@ contract PoolFactory is Bronze, Ownable {
         setRepricerRegistry(repricerRegistry);
     }
 
-    function isPool(address b)
-    external view returns (bool)
-    {
+    function isPool(address b) external view returns (bool) {
         return _isPool[b];
     }
 
     function newPool(
         address derivativeVault,
         bytes32 repricerSymbol,
-        uint baseFee,
-        uint maxFee,
-        uint feeAmp
-    )
-    external
-    returns (IPool)
-    {
-        address bpool = _poolBuilder.buildPool(
-            msg.sender,
-            derivativeVault,
-            _dynamicFee,
-            _repricerRegistry.get(repricerSymbol),
-            baseFee,
-            maxFee,
-            feeAmp
-        );
+        uint256 baseFee,
+        uint256 maxFee,
+        uint256 feeAmp
+    ) external returns (IPool) {
+        address bpool =
+            _poolBuilder.buildPool(
+                msg.sender,
+                derivativeVault,
+                _dynamicFee,
+                _repricerRegistry.get(repricerSymbol),
+                baseFee,
+                maxFee,
+                feeAmp
+            );
         _pools.push(bpool);
         _isPool[bpool] = true;
         emit LOG_NEW_POOL(msg.sender, bpool);
@@ -83,17 +73,17 @@ contract PoolFactory is Bronze, Ownable {
     }
 
     function setPoolBuilder(address poolBuilder) public onlyOwner {
-        require(poolBuilder != address(0), "Pool builder");
+        require(poolBuilder != address(0), 'Pool builder');
         _poolBuilder = IPoolBuilder(poolBuilder);
     }
 
     function setDynamicFee(address dynamicFee) public onlyOwner {
-        require(dynamicFee != address(0), "DynamicFee");
+        require(dynamicFee != address(0), 'DynamicFee');
         _dynamicFee = dynamicFee;
     }
 
     function setRepricerRegistry(address repricerRegistry) public onlyOwner {
-        require(repricerRegistry != address(0), "Repricer registry");
+        require(repricerRegistry != address(0), 'Repricer registry');
         _repricerRegistry = IAddressRegistry(repricerRegistry);
     }
 
@@ -109,23 +99,21 @@ contract PoolFactory is Bronze, Ownable {
         IPausablePool(_pool).unpause();
     }
 
-    function collect(IPool pool)
-        external onlyOwner
-    {
-        uint collected = IERC20(pool).balanceOf(address(this));
+    function collect(IPool pool) external onlyOwner {
+        uint256 collected = IERC20(pool).balanceOf(address(this));
         bool xfer = pool.transfer(owner(), collected);
-        require(xfer, "ERC20_FAILED");
+        require(xfer, 'ERC20_FAILED');
     }
 
-    function getPool(uint _index) external view returns(address) {
+    function getPool(uint256 _index) external view returns (address) {
         return _pools[_index];
     }
 
-    function getLastPoolIndex() external view returns(uint) {
+    function getLastPoolIndex() external view returns (uint256) {
         return _pools.length - 1;
     }
 
-    function getAllPools() external view returns(address[] memory) {
+    function getAllPools() external view returns (address[] memory) {
         return _pools;
     }
 }

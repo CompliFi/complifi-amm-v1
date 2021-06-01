@@ -2,130 +2,133 @@
 
 pragma solidity 0.7.6;
 
-import "@chainlink/contracts/src/v0.6/interfaces/AggregatorV3Interface.sol";
-import "@openzeppelin/contracts/math/SafeMath.sol";
-import "./IRepricer.sol";
-import "../Const.sol";
-import "../Num.sol";
-import "../NumExtra.sol";
+import '@chainlink/contracts/src/v0.6/interfaces/AggregatorV3Interface.sol';
+import '@openzeppelin/contracts/math/SafeMath.sol';
+import './IRepricer.sol';
+import '../Const.sol';
+import '../Num.sol';
+import '../NumExtra.sol';
 
-import "hardhat/console.sol";
+//import "hardhat/console.sol";
 
-contract x5Repricer is IRepricer,  Const, Num, NumExtra {
-    int public constant NEGATIVE_INFINITY = type(int256).min;
+contract x5Repricer is IRepricer, Const, Num, NumExtra {
+    int256 public constant NEGATIVE_INFINITY = type(int256).min;
 
-    function isRepricer() external override pure returns(bool) {
+    function isRepricer() external pure override returns (bool) {
         return true;
     }
 
-    function symbol() external override pure returns (string memory) {
-        return "x5Repricer";
-    }
-
-    function calcD1(int _normUnvPrim, int _volatility, int _ttm)
-    internal pure returns(int)
-    {
-        int multiplier = (iBONE * iBONE * sqrt(iBONE)) / (_volatility * sqrt(_ttm));
-        return multiplier  * (ln(_normUnvPrim) +  (_volatility ** 2) * _ttm / (iBONE * iBONE * 2)) / iBONE;
-    }
-
-    function calcD2(int _d1, int _volatility, int _ttm)
-    internal pure returns(int)
-    {
-        return _d1 - _volatility * sqrt(_ttm) / sqrt(iBONE);
-    }
-
-    function calcOption(
-        int unvPrim,
-        int volatility,
-        int ttm,
-        int reducer
-    )
-    internal pure returns(int _option) {
-
-        int d1 = calcD1(unvPrim/reducer, volatility, ttm);
-        _option = ncdf(d1) * unvPrim / iBONE - ncdf(calcD2(d1, volatility, ttm)) * reducer;
+    function symbol() external pure override returns (string memory) {
+        return 'x5Repricer';
     }
 
     function reprice(
-        uint pMin,
-        int volatility,
+        uint256 pMin,
+        int256 volatility,
         IVault _vault,
-        uint[2] memory primary,
-        uint[2] memory complement,
-        int _liveUnderlingValue
+        uint256[2] memory primary,
+        uint256[2] memory complement,
+        int256 _liveUnderlingValue
     )
-    external view override returns(
-        uint newPrimaryLeverage, uint newComplementLeverage, int estPricePrimary, int estPriceComplement
-    ) {
-
-        require(address(_vault) != address(0), "Zero oracle");
+        external
+        view
+        override
+        returns (
+            uint256 newPrimaryLeverage,
+            uint256 newComplementLeverage,
+            int256 estPricePrimary,
+            int256 estPriceComplement
+        )
+    {
+        require(address(_vault) != address(0), 'Zero oracle');
 
         (estPricePrimary, estPriceComplement) = calcEstPrice(
             calcDenomination(_vault),
-            calcUnv(
-                _liveUnderlingValue,
-                getCurrentUnderlingValue(_vault)
-            ),
+            calcUnv(_liveUnderlingValue, getCurrentUnderlingValue(_vault)),
             calcTtm(_vault.settleTime()),
-            int(pMin),
+            int256(pMin),
             volatility
         );
-        uint estPrice = uint(estPriceComplement * iBONE / estPricePrimary);
+        uint256 estPrice = uint256((estPriceComplement * iBONE) / estPricePrimary);
 
-        uint leveragesMultiplied = mul(primary[1], complement[1]);
+        uint256 leveragesMultiplied = mul(primary[1], complement[1]);
 
-        newPrimaryLeverage = uint(sqrt(
-                int(div(
-                    mul(leveragesMultiplied, mul(complement[0], estPrice)),
-                    primary[0]
-                )))
+        newPrimaryLeverage = uint256(
+            sqrt(int256(div(mul(leveragesMultiplied, mul(complement[0], estPrice)), primary[0])))
         );
         newComplementLeverage = div(leveragesMultiplied, newPrimaryLeverage);
     }
 
     function getCurrentUnderlingValue(IVault _vault)
-    internal view returns(int currentUnderlingValue) {
-        uint currentTimestamp;
-        (,currentUnderlingValue,,currentTimestamp,) = AggregatorV3Interface(_vault.oracles(0)).latestRoundData();
-        require(currentTimestamp > 0, "EMPTY_ORACLE_LATEST_ROUND");
+        internal
+        view
+        returns (int256 currentUnderlingValue)
+    {
+        uint256 currentTimestamp;
+        (, currentUnderlingValue, , currentTimestamp, ) = AggregatorV3Interface(_vault.oracles(0))
+            .latestRoundData();
+        require(currentTimestamp > 0, 'EMPTY_ORACLE_LATEST_ROUND');
     }
 
-    function calcTtm(uint _settledTimestamp)
-    internal view returns(int) {
-        return (int(_settledTimestamp) - int(block.timestamp)) * iBONE / 31536000; // 365 * 24 * 3600
+    function calcTtm(uint256 _settledTimestamp) internal view returns (int256) {
+        return ((int256(_settledTimestamp) - int256(block.timestamp)) * iBONE) / 31536000; // 365 * 24 * 3600
     }
 
-    function calcUnv(int _liveUnderlingValue, int _currentUnderlingValue)
-    internal pure returns(int) {
-        return 5 * iBONE + 5 * ((_currentUnderlingValue - _liveUnderlingValue) * iBONE / _liveUnderlingValue);
+    function calcUnv(int256 _liveUnderlingValue, int256 _currentUnderlingValue)
+        internal
+        pure
+        returns (int256)
+    {
+        return
+            5 *
+            iBONE +
+            5 *
+            (((_currentUnderlingValue - _liveUnderlingValue) * iBONE) / _liveUnderlingValue);
     }
 
-    function calcDenomination(IVault _vault) internal view returns (int denomination) {
-        denomination = int(
+    function calcDenomination(IVault _vault) internal view returns (int256 denomination) {
+        denomination = int256(
             _vault.derivativeSpecification().primaryNominalValue() +
-            _vault.derivativeSpecification().complementNominalValue()
+                _vault.derivativeSpecification().complementNominalValue()
         );
     }
 
-    function calcEstPrice(
-        int _denomination,
-        int _unvPrim,
-        int _ttm,
-        int _pMin,
-        int _volatility
-    )
-    internal pure returns(int estPricePrimary, int estPriceComplement)
-    {
-        estPricePrimary = calcOption(_unvPrim, _volatility, _ttm, 4) - calcOption(_unvPrim, _volatility, _ttm, 6);
-        estPriceComplement = _denomination * iBONE - estPricePrimary;
+    function calcEstPricePrimary(
+        int256 _unvPrim,
+        int256 _ttm,
+        int256 _volatility
+    ) internal pure returns (int256) {
+        int256 volatilityBySqrtTtm = (_volatility * sqrt(_ttm)) / iBONE;
+        int256 multiplier = (iBONE * iBONE) / volatilityBySqrtTtm;
+        int256 volatilityByTtm = ((_volatility * _volatility) * _ttm) / (iBONE * iBONE * 2);
 
-        if(_pMin > estPricePrimary) {
+        int256 d1 = (multiplier * (ln(_unvPrim / 4) + volatilityByTtm)) / iBONE;
+        int256 option4 = (ncdf(d1) * _unvPrim) / iBONE - ncdf(d1 - volatilityBySqrtTtm) * 4;
+
+        d1 = (multiplier * (ln(_unvPrim / 6) + volatilityByTtm)) / iBONE;
+        int256 option6 = (ncdf(d1) * _unvPrim) / iBONE - ncdf(d1 - volatilityBySqrtTtm) * 6;
+
+        return option4 - option6;
+    }
+
+    function calcEstPrice(
+        int256 _denomination,
+        int256 _unvPrim,
+        int256 _ttm,
+        int256 _pMin,
+        int256 _volatility
+    ) internal pure returns (int256 estPricePrimary, int256 estPriceComplement) {
+        estPricePrimary = calcEstPricePrimary(_unvPrim, _ttm, _volatility);
+
+        if (estPricePrimary < _pMin) {
             estPricePrimary = _pMin;
         }
 
-        if(estPriceComplement > _denomination * iBONE - _pMin) {
-            estPriceComplement = _denomination * iBONE - _pMin;
+        int256 denominationTimesBone = _denomination * iBONE;
+        if (estPricePrimary > denominationTimesBone - _pMin) {
+            estPricePrimary = denominationTimesBone - _pMin;
         }
+
+        estPriceComplement = denominationTimesBone - estPricePrimary;
     }
 }

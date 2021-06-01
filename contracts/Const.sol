@@ -13,16 +13,16 @@
 
 pragma solidity 0.7.6;
 
-import "./Color.sol";
+import './Color.sol';
 
 contract Const is Bronze {
-    uint public constant BONE              = 10**18;
-    int public constant  iBONE             = int(BONE);
+    uint256 public constant BONE = 10**18;
+    int256 public constant iBONE = int256(BONE);
 
-    uint public constant MIN_POW_BASE      = 1 wei;
-    uint public constant MAX_POW_BASE      = (2 * BONE) - 1 wei;
-    uint public constant POW_PRECISION     = BONE / 10**10;
+    uint256 public constant MIN_POW_BASE = 1 wei;
+    uint256 public constant MAX_POW_BASE = (2 * BONE) - 1 wei;
+    uint256 public constant POW_PRECISION = BONE / 10**10;
 
-    uint public constant MAX_IN_RATIO      = BONE / 2;
-    uint public constant MAX_OUT_RATIO     = (BONE / 3) + 1 wei;
+    uint256 public constant MAX_IN_RATIO = BONE / 2;
+    uint256 public constant MAX_OUT_RATIO = (BONE / 3) + 1 wei;
 }

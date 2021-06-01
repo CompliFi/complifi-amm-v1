@@ -13,66 +13,56 @@
 
 pragma solidity 0.7.6;
 
-import "./Token.sol";
-import "./IVault.sol";
+import './Token.sol';
+import './libs/complifi/IVault.sol';
 
 interface IPool is IERC20 {
+    function repricingBlock() external view returns (uint256);
 
-    function repricingBlock() external view returns(uint);
+    function baseFee() external view returns (uint256);
 
-    function baseFee() external view returns(uint);
-    function feeAmp() external view returns(uint);
-    function maxFee() external view returns(uint);
+    function feeAmp() external view returns (uint256);
 
-    function pMin() external view returns(uint);
-    function qMin() external view returns(uint);
-    function exposureLimit() external view returns(uint);
-    function volatility() external view returns(uint);
+    function maxFee() external view returns (uint256);
 
-    function derivativeVault() external view returns(IVault);
-    function dynamicFee() external view returns(address);
-    function repricer() external view returns(address);
+    function pMin() external view returns (uint256);
 
-    function isFinalized()
-    external view
-    returns (bool);
+    function qMin() external view returns (uint256);
 
-    function getNumTokens()
-    external view
-    returns (uint);
+    function exposureLimit() external view returns (uint256);
 
-    function getTokens()
-    external view
-    returns (address[] memory tokens);
+    function volatility() external view returns (uint256);
 
-    function getLeverage(address token)
-    external view
-    returns (uint);
+    function derivativeVault() external view returns (IVault);
 
-    function getBalance(address token)
-    external view
-    returns (uint);
+    function dynamicFee() external view returns (address);
 
-    function getController()
-    external view
-    returns (address);
+    function repricer() external view returns (address);
 
-    function setController(address manager)
-    external;
+    function isFinalized() external view returns (bool);
 
+    function getNumTokens() external view returns (uint256);
 
-    function joinPool(uint poolAmountOut, uint[2] calldata maxAmountsIn)
-    external;
+    function getTokens() external view returns (address[] memory tokens);
 
-    function exitPool(uint poolAmountIn, uint[2] calldata minAmountsOut)
-    external;
+    function getLeverage(address token) external view returns (uint256);
+
+    function getBalance(address token) external view returns (uint256);
+
+    function getController() external view returns (address);
+
+    function setController(address manager) external;
+
+    function joinPool(uint256 poolAmountOut, uint256[2] calldata maxAmountsIn) external;
+
+    function exitPool(uint256 poolAmountIn, uint256[2] calldata minAmountsOut) external;
 
     function swapExactAmountIn(
         address tokenIn,
-        uint tokenAmountIn,
+        uint256 tokenAmountIn,
         address tokenOut,
-        uint minAmountOut
-    )
-    external
-    returns (uint tokenAmountOut, uint spotPriceAfter);
+        uint256 minAmountOut
+    ) external returns (uint256 tokenAmountOut, uint256 spotPriceAfter);
+
+    function paused() external view returns (bool);
 }

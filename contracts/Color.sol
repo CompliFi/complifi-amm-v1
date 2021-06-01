@@ -14,15 +14,11 @@
 pragma solidity 0.7.6;
 
 abstract contract Color {
-    function getColor()
-        external view virtual
-        returns (bytes32);
+    function getColor() external view virtual returns (bytes32);
 }
 
 contract Bronze is Color {
-    function getColor()
-        external view override
-        returns (bytes32) {
-            return bytes32("BRONZE");
-        }
+    function getColor() external view override returns (bytes32) {
+        return bytes32('BRONZE');
+    }
 }

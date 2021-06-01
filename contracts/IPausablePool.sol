@@ -14,5 +14,6 @@ pragma solidity 0.7.6;
 
 interface IPausablePool {
     function pause() external;
+
     function unpause() external;
 }

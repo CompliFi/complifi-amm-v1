@@ -13,50 +13,53 @@
 
 pragma solidity 0.7.6;
 
-import "../Math.sol";
-import "../Num.sol";
+import '../Math.sol';
+import '../Num.sol';
 
 // Contract to wrap internal functions for testing
 
 contract TMath is Math {
-
-    function calc_toi(uint a) external pure returns (uint) {
+    function calc_toi(uint256 a) external pure returns (uint256) {
         return toi(a);
     }
 
-    function calc_floor(uint a) external pure returns (uint) {
+    function calc_floor(uint256 a) external pure returns (uint256) {
         return floor(a);
     }
 
-    function calc_add(uint a, uint b) external pure returns (uint) {
+    function calc_add(uint256 a, uint256 b) external pure returns (uint256) {
         return add(a, b);
     }
 
-    function calc_sub(uint a, uint b) external pure returns (uint) {
+    function calc_sub(uint256 a, uint256 b) external pure returns (uint256) {
         return sub(a, b);
     }
 
-    function calc_subSign(uint a, uint b) external pure returns (uint, bool) {
+    function calc_subSign(uint256 a, uint256 b) external pure returns (uint256, bool) {
         return subSign(a, b);
     }
 
-    function calc_mul(uint a, uint b) external pure returns (uint) {
+    function calc_mul(uint256 a, uint256 b) external pure returns (uint256) {
         return mul(a, b);
     }
 
-    function calc_div(uint a, uint b) external pure returns (uint) {
+    function calc_div(uint256 a, uint256 b) external pure returns (uint256) {
         return div(a, b);
     }
 
-    function calc_powi(uint a, uint n) external pure returns (uint) {
+    function calc_powi(uint256 a, uint256 n) external pure returns (uint256) {
         return powi(a, n);
     }
 
-    function calc_pow(uint base, uint exp) external pure returns (uint) {
+    function calc_pow(uint256 base, uint256 exp) external pure returns (uint256) {
         return pow(base, exp);
     }
 
-    function calc_powApprox(uint base, uint exp, uint precision) external pure returns (uint) {
+    function calc_powApprox(
+        uint256 base,
+        uint256 exp,
+        uint256 precision
+    ) external pure returns (uint256) {
         return powApprox(base, exp, precision);
     }
 }

@@ -13,66 +13,73 @@
 
 pragma solidity 0.7.6;
 
-import "./Num.sol";
+import './Num.sol';
 
 // Highly opinionated token implementation
 
 interface IERC20 {
+    function totalSupply() external view returns (uint256);
 
-    function totalSupply() external view returns (uint);
-    function balanceOf(address whom) external view returns (uint);
-    function allowance(address src, address dst) external view returns (uint);
+    function balanceOf(address whom) external view returns (uint256);
 
-    function approve(address dst, uint amt) external returns (bool);
-    function transfer(address dst, uint amt) external returns (bool);
+    function allowance(address src, address dst) external view returns (uint256);
+
+    function approve(address dst, uint256 amt) external returns (bool);
+
+    function transfer(address dst, uint256 amt) external returns (bool);
+
     function transferFrom(
-        address src, address dst, uint amt
+        address src,
+        address dst,
+        uint256 amt
     ) external returns (bool);
 }
 
 contract TokenBase is Num {
+    mapping(address => uint256) internal _balance;
+    mapping(address => mapping(address => uint256)) internal _allowance;
+    uint256 internal _totalSupply;
 
-    mapping(address => uint)                   internal _balance;
-    mapping(address => mapping(address=>uint)) internal _allowance;
-    uint internal _totalSupply;
+    event Approval(address indexed src, address indexed dst, uint256 amt);
+    event Transfer(address indexed src, address indexed dst, uint256 amt);
 
-    event Approval(address indexed src, address indexed dst, uint amt);
-    event Transfer(address indexed src, address indexed dst, uint amt);
-
-    function _mint(uint amt) internal {
+    function _mint(uint256 amt) internal {
         _balance[address(this)] = add(_balance[address(this)], amt);
         _totalSupply = add(_totalSupply, amt);
         emit Transfer(address(0), address(this), amt);
     }
 
-    function _burn(uint amt) internal {
-        require(_balance[address(this)] >= amt, "INSUFFICIENT_BAL");
+    function _burn(uint256 amt) internal {
+        require(_balance[address(this)] >= amt, 'INSUFFICIENT_BAL');
         _balance[address(this)] = sub(_balance[address(this)], amt);
         _totalSupply = sub(_totalSupply, amt);
         emit Transfer(address(this), address(0), amt);
     }
 
-    function _move(address src, address dst, uint amt) internal {
-        require(_balance[src] >= amt, "INSUFFICIENT_BAL");
+    function _move(
+        address src,
+        address dst,
+        uint256 amt
+    ) internal {
+        require(_balance[src] >= amt, 'INSUFFICIENT_BAL');
         _balance[src] = sub(_balance[src], amt);
         _balance[dst] = add(_balance[dst], amt);
         emit Transfer(src, dst, amt);
     }
 
-    function _push(address to, uint amt) internal {
+    function _push(address to, uint256 amt) internal {
         _move(address(this), to, amt);
     }
 
-    function _pull(address from, uint amt) internal {
+    function _pull(address from, uint256 amt) internal {
         _move(from, address(this), amt);
     }
 }
 
 contract Token is TokenBase, IERC20 {
-
-    string  private _name;
-    string  private _symbol;
-    uint8   private constant _decimals = 18;
+    string private _name;
+    string private _symbol;
+    uint8 private constant _decimals = 18;
 
     function setName(string memory name) internal {
         _name = name;
@@ -90,36 +97,36 @@ contract Token is TokenBase, IERC20 {
         return _symbol;
     }
 
-    function decimals() public view returns(uint8) {
+    function decimals() public view returns (uint8) {
         return _decimals;
     }
 
-    function allowance(address src, address dst) external view override returns (uint) {
+    function allowance(address src, address dst) external view override returns (uint256) {
         return _allowance[src][dst];
     }
 
-    function balanceOf(address whom) external view override returns (uint) {
+    function balanceOf(address whom) external view override returns (uint256) {
         return _balance[whom];
     }
 
-    function totalSupply() public view override returns (uint) {
+    function totalSupply() public view override returns (uint256) {
         return _totalSupply;
     }
 
-    function approve(address dst, uint amt) external override returns (bool) {
+    function approve(address dst, uint256 amt) external override returns (bool) {
         _allowance[msg.sender][dst] = amt;
         emit Approval(msg.sender, dst, amt);
         return true;
     }
 
-    function increaseApproval(address dst, uint amt) external returns (bool) {
+    function increaseApproval(address dst, uint256 amt) external returns (bool) {
         _allowance[msg.sender][dst] = add(_allowance[msg.sender][dst], amt);
         emit Approval(msg.sender, dst, _allowance[msg.sender][dst]);
         return true;
     }
 
-    function decreaseApproval(address dst, uint amt) external returns (bool) {
-        uint oldValue = _allowance[msg.sender][dst];
+    function decreaseApproval(address dst, uint256 amt) external returns (bool) {
+        uint256 oldValue = _allowance[msg.sender][dst];
         if (amt > oldValue) {
             _allowance[msg.sender][dst] = 0;
         } else {
@@ -129,14 +136,18 @@ contract Token is TokenBase, IERC20 {
         return true;
     }
 
-    function transfer(address dst, uint amt) external override returns (bool) {
+    function transfer(address dst, uint256 amt) external override returns (bool) {
         _move(msg.sender, dst, amt);
         return true;
     }
 
-    function transferFrom(address src, address dst, uint amt) external override returns (bool) {
-        uint oldValue = _allowance[src][msg.sender];
-        require(msg.sender == src || amt <= oldValue, "TOKEN_BAD_CALLER");
+    function transferFrom(
+        address src,
+        address dst,
+        uint256 amt
+    ) external override returns (bool) {
+        uint256 oldValue = _allowance[src][msg.sender];
+        require(msg.sender == src || amt <= oldValue, 'TOKEN_BAD_CALLER');
         _move(src, dst, amt);
         if (msg.sender != src && oldValue != uint256(-1)) {
             _allowance[src][msg.sender] = sub(oldValue, amt);

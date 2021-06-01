@@ -14,10 +14,13 @@
 pragma solidity 0.7.6;
 pragma abicoder v2;
 
-import "./IPool.sol";
-import "./libs/complifi/tokens/IERC20Metadata.sol";
+import './IPool.sol';
+import './libs/complifi/tokens/IERC20Metadata.sol';
 
+/// @title Reading key data from specified derivative trading Pool
 contract PoolView {
+
+    /// @notice Contains key information about a derivative token
     struct TokenRecord {
         address self;
         uint256 balance;
@@ -26,6 +29,7 @@ contract PoolView {
         uint256 userBalance;
     }
 
+    /// @notice Contains key information about arbitrary ERC20 token
     struct Token {
         address self;
         uint256 totalSupply;
@@ -33,29 +37,38 @@ contract PoolView {
         uint256 userBalance;
     }
 
+    /// @notice Contains key information about a Pool's configuration
     struct Config {
         address derivativeVault;
         address dynamicFee;
         address repricer;
-        uint exposureLimit;
-        uint volatility;
-        uint pMin;
-        uint qMin;
+        uint256 exposureLimit;
+        uint256 volatility;
+        uint256 pMin;
+        uint256 qMin;
         uint8 qMinDecimals;
-        uint baseFee;
-        uint maxFee;
-        uint feeAmp;
+        uint256 baseFee;
+        uint256 maxFee;
+        uint256 feeAmp;
         uint8 decimals;
+        bool isPaused;
     }
 
-    function getPoolInfo(address _pool)
-    external view
-    returns (
-        TokenRecord memory primary,
-        TokenRecord memory complement,
-        Token memory poolToken,
-        Config memory config
-    )
+    /// @notice Getting information about Pool configuration, it's derivative and pool(LP) tokens
+    /// @param _pool the vault address
+    /// @return primary pool's primary token metadata
+    /// @return complement pool' complement token metadata
+    /// @return poolToken pool's own token metadata
+    /// @return config pool configuration
+    function getPoolInfo(address _pool, address _sender)
+        external
+        view
+        returns (
+            TokenRecord memory primary,
+            TokenRecord memory complement,
+            Token memory poolToken,
+            Config memory config
+        )
     {
         IPool pool = IPool(_pool);
 
@@ -65,7 +78,7 @@ contract PoolView {
             pool.getBalance(_primaryAddress),
             pool.getLeverage(_primaryAddress),
             IERC20Metadata(_primaryAddress).decimals(),
-            IERC20(_primaryAddress).balanceOf(msg.sender)
+            _sender == address(0) ? 0 : IERC20(_primaryAddress).balanceOf(_sender)
         );
 
         address _complementAddress = address(pool.derivativeVault().complementToken());
@@ -74,14 +87,14 @@ contract PoolView {
             pool.getBalance(_complementAddress),
             pool.getLeverage(_complementAddress),
             IERC20Metadata(_complementAddress).decimals(),
-            IERC20(_complementAddress).balanceOf(msg.sender)
+            _sender == address(0) ? 0 : IERC20(_complementAddress).balanceOf(_sender)
         );
 
         poolToken = Token(
             _pool,
             pool.totalSupply(),
             IERC20Metadata(_pool).decimals(),
-            IERC20(_pool).balanceOf(msg.sender)
+            _sender == address(0) ? 0 : IERC20(_pool).balanceOf(_sender)
         );
 
         config = Config(
@@ -96,24 +109,38 @@ contract PoolView {
             pool.baseFee(),
             pool.maxFee(),
             pool.feeAmp(),
-            IERC20Metadata(_pool).decimals()
+            IERC20Metadata(_pool).decimals(),
+            pool.paused()
         );
     }
 
+    /// @notice Getting current state of Pool, token balances and leverages, LP token supply
+    /// @param _pool vault address
+    /// @return primary pool's primary token address
+    /// @return primaryBalance pool's primary token balance
+    /// @return primaryLeverage pool's primary token leverage
+    /// @return primaryDecimals pool's primary token decimals
+    /// @return complement pool's complement token address
+    /// @return complementBalance pool's complement token balance
+    /// @return complementLeverage pool's complement token leverage
+    /// @return complementDecimals pool's complement token decimals
+    /// @return lpTotalSupply pool's LP token total supply
+    /// @return lpDecimals pool's LP token decimals
     function getPoolTokenData(address _pool)
-    external view
-    returns (
-        address primary,
-        uint primaryBalance,
-        uint primaryLeverage,
-        uint8 primaryDecimals,
-        address complement,
-        uint complementBalance,
-        uint complementLeverage,
-        uint8 complementDecimals,
-        uint lpTotalSupply,
-        uint8 lpDecimals
-    )
+        external
+        view
+        returns (
+            address primary,
+            uint256 primaryBalance,
+            uint256 primaryLeverage,
+            uint8 primaryDecimals,
+            address complement,
+            uint256 complementBalance,
+            uint256 complementLeverage,
+            uint8 complementDecimals,
+            uint256 lpTotalSupply,
+            uint8 lpDecimals
+        )
     {
         IPool pool = IPool(_pool);
 
@@ -128,24 +155,26 @@ contract PoolView {
         complementLeverage = pool.getLeverage(complement);
         complementDecimals = IERC20Metadata(complement).decimals();
 
-        lpTotalSupply  = pool.totalSupply();
+        lpTotalSupply = pool.totalSupply();
         lpDecimals = IERC20Metadata(_pool).decimals();
     }
 
+    /// @notice Getting Pool configuration only to reduce data loading time
     function getPoolConfig(address _pool)
-    external view
-    returns (
-        address derivativeVault,
-        address dynamicFee,
-        address repricer,
-        uint exposureLimit,
-        uint volatility,
-        uint pMin,
-        uint qMin,
-        uint baseFee,
-        uint maxFee,
-        uint feeAmp
-    )
+        external
+        view
+        returns (
+            address derivativeVault,
+            address dynamicFee,
+            address repricer,
+            uint256 exposureLimit,
+            uint256 volatility,
+            uint256 pMin,
+            uint256 qMin,
+            uint256 baseFee,
+            uint256 maxFee,
+            uint256 feeAmp
+        )
     {
         IPool pool = IPool(_pool);
         derivativeVault = address(pool.derivativeVault());

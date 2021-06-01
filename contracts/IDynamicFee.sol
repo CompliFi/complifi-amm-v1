@@ -15,25 +15,18 @@ pragma solidity 0.7.6;
 pragma experimental ABIEncoderV2;
 
 interface IDynamicFee {
-
     function calc(
-        int[3] memory _inRecord,
-        int[3] memory _outRecord,
-        int _baseFee,
-        int _feeAmp,
-        int _maxFee
-    )
-    external
-    returns(int fee, int expStart);
+        int256[3] calldata _inRecord,
+        int256[3] calldata _outRecord,
+        int256 _baseFee,
+        int256 _feeAmp,
+        int256 _maxFee
+    ) external returns (int256 fee, int256 expStart);
 
     function calcSpotFee(
-        int _expStart,
-        uint _baseFee,
-        uint _feeAmp,
-        uint _maxFee
-    )
-    external
-    returns(uint);
+        int256 _expStart,
+        uint256 _baseFee,
+        uint256 _feeAmp,
+        uint256 _maxFee
+    ) external returns (uint256);
 }
-
-

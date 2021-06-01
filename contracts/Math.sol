@@ -13,7 +13,7 @@
 
 pragma solidity 0.7.6;
 
-import "./Num.sol";
+import './Num.sol';
 
 contract Math is Bronze, Const, Num {
     /**********************************************************************************************
@@ -24,15 +24,12 @@ contract Math is Bronze, Const, Num {
     // sF = swapFee                        bO      ( 1 - sF )                                    //
     **********************************************************************************************/
     function calcSpotPrice(
-        uint tokenBalanceIn,
-        uint tokenBalanceOut,
-        uint swapFee
-    )
-        public pure
-        returns (uint spotPrice)
-    {
-        uint ratio = div(tokenBalanceIn, tokenBalanceOut);
-        uint scale = div(BONE, sub(BONE, swapFee));
+        uint256 tokenBalanceIn,
+        uint256 tokenBalanceOut,
+        uint256 swapFee
+    ) public pure returns (uint256 spotPrice) {
+        uint256 ratio = div(tokenBalanceIn, tokenBalanceOut);
+        uint256 scale = div(BONE, sub(BONE, swapFee));
         spotPrice = mul(ratio, scale);
     }
 
@@ -45,18 +42,15 @@ contract Math is Bronze, Const, Num {
     // sF = swapFee                     \      \ ( bI + ( aI * ( 1 - sF )) /   /                 //
     **********************************************************************************************/
     function calcOutGivenIn(
-        uint tokenBalanceIn,
-        uint tokenBalanceOut,
-        uint tokenAmountIn,
-        uint swapFee
-    )
-        public pure
-        returns (uint tokenAmountOut)
-    {
-        uint adjustedIn = sub(BONE, swapFee);
+        uint256 tokenBalanceIn,
+        uint256 tokenBalanceOut,
+        uint256 tokenAmountIn,
+        uint256 swapFee
+    ) public pure returns (uint256 tokenAmountOut) {
+        uint256 adjustedIn = sub(BONE, swapFee);
         adjustedIn = mul(tokenAmountIn, adjustedIn);
-        uint y = div(tokenBalanceIn, add(tokenBalanceIn, adjustedIn));
-        uint bar = sub(BONE, y);
+        uint256 y = div(tokenBalanceIn, add(tokenBalanceIn, adjustedIn));
+        uint256 bar = sub(BONE, y);
         tokenAmountOut = mul(tokenBalanceOut, bar);
     }
 
@@ -70,17 +64,14 @@ contract Math is Bronze, Const, Num {
     //                                              ( 1 - sF )                                   //
     **********************************************************************************************/
     function calcInGivenOut(
-        uint tokenBalanceIn,
-        uint tokenBalanceOut,
-        uint tokenAmountOut,
-        uint swapFee
-    )
-        public pure
-        returns (uint tokenAmountIn)
-    {
-        uint diff = sub(tokenBalanceOut, tokenAmountOut);
-        uint y = div(tokenBalanceOut, diff);
-        uint foo = sub(y, BONE);
+        uint256 tokenBalanceIn,
+        uint256 tokenBalanceOut,
+        uint256 tokenAmountOut,
+        uint256 swapFee
+    ) public pure returns (uint256 tokenAmountIn) {
+        uint256 diff = sub(tokenBalanceOut, tokenAmountOut);
+        uint256 y = div(tokenBalanceOut, diff);
+        uint256 foo = sub(y, BONE);
         tokenAmountIn = sub(BONE, swapFee);
         tokenAmountIn = div(mul(tokenBalanceIn, foo), tokenAmountIn);
     }

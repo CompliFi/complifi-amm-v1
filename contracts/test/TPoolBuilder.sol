@@ -2,28 +2,29 @@
 
 pragma solidity 0.7.6;
 
-import "./TPool.sol";
-import "../IPoolBuilder.sol";
+import './TPool.sol';
+import '../IPoolBuilder.sol';
 
-contract TPoolBuilder is IPoolBuilder{
+contract TPoolBuilder is IPoolBuilder {
     function buildPool(
         address controller,
         address derivativeVault,
         address feeCalculator,
         address repricer,
-        uint baseFee,
-        uint maxFee,
-        uint feeAmp
-    ) public override returns(address){
-        TPool pool = new TPool(
-            derivativeVault,
-            feeCalculator,
-            repricer,
-            baseFee,
-            maxFee,
-            feeAmp,
-            controller
-        );
+        uint256 baseFee,
+        uint256 maxFee,
+        uint256 feeAmp
+    ) public override returns (address) {
+        TPool pool =
+            new TPool(
+                derivativeVault,
+                feeCalculator,
+                repricer,
+                baseFee,
+                maxFee,
+                feeAmp,
+                controller
+            );
         pool.transferOwnership(msg.sender);
         return address(pool);
     }
