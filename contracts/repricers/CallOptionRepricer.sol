@@ -9,7 +9,7 @@ import '../Const.sol';
 import '../Num.sol';
 import '../NumExtra.sol';
 
-contract x5Repricer is IRepricer, Const, Num, NumExtra {
+contract CallOptionRepricer is IRepricer, Const, Num, NumExtra {
     int256 public constant NEGATIVE_INFINITY = type(int256).min;
 
     function isRepricer() external pure override returns (bool) {
@@ -17,7 +17,7 @@ contract x5Repricer is IRepricer, Const, Num, NumExtra {
     }
 
     function symbol() external pure override returns (string memory) {
-        return 'x5Repricer';
+        return 'CallOptionRepricer';
     }
 
     function reprice(
@@ -38,11 +38,12 @@ contract x5Repricer is IRepricer, Const, Num, NumExtra {
     {
         require(address(_vault) != address(0), 'Zero vault');
 
-        upperBoundary = calcDenomination(_vault) * BONE;
+        int256 currentUnderlingValue = getCurrentUnderlingValue(_vault) * iBONE;
+        upperBoundary = uint256(currentUnderlingValue);
 
         (estPricePrimary, estPriceComplement) = calcEstPrices(
             calcEstPricePrimary(
-                calcUnv(_vault.underlyingStarts(0), getCurrentUnderlingValue(_vault)),
+                currentUnderlingValue,
                 calcTtm(_vault.settleTime()),
                 _repricerParam1,
                 _repricerParam2
@@ -68,34 +69,21 @@ contract x5Repricer is IRepricer, Const, Num, NumExtra {
         return ((int256(_settledTimestamp) - int256(block.timestamp)) * iBONE) / 31536000; // 365 * 24 * 3600
     }
 
-    function calcUnv(int256 _liveUnderlingValue, int256 _currentUnderlingValue)
-        internal
-        pure
-        returns (int256)
-    {
-        return
-            5 *
-            iBONE +
-            5 *
-            (((_currentUnderlingValue - _liveUnderlingValue) * iBONE) / _liveUnderlingValue);
-    }
-
-    function calcDenomination(IVault _vault) internal view returns (uint256 denomination) {
-        denomination =
+    function calcDenomination(IVault _vault) internal view returns (int256 denomination) {
+        denomination = int256(
             _vault.derivativeSpecification().primaryNominalValue() +
-            _vault.derivativeSpecification().complementNominalValue();
+                _vault.derivativeSpecification().complementNominalValue()
+        );
     }
 
     function calcEstPricePrimary(
         int256 _spotPrice,
         int256 _ttm,
-        int256 _volatilityOption4,
-        int256 _volatilityOption6
+        int256 _volatility,
+        int256 _strike
     ) internal pure returns (int256) {
         int256 ttmSqrt = sqrt(_ttm);
-        int256 option4 = calcOption(_spotPrice, _volatilityOption4, ttmSqrt, _ttm, 4);
-        int256 option6 = calcOption(_spotPrice, _volatilityOption6, ttmSqrt, _ttm, 6);
-        return option4 - option6;
+        return calcOption(_spotPrice, _volatility, ttmSqrt, _ttm, _strike);
     }
 
     function calcOption(

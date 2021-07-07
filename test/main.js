@@ -131,12 +131,9 @@ contract('Integration', (accounts) => {
     }
     const createAndInitializePool = async (balancePrimary, balanceComplement, leveragePrimary, leverageComplement, isRepricingOn) =>{
         console.log('create pool');
-        const baseFee = (0.005 * Math.pow(10, 18)).toString();
-        const maxFee = (0.25 * Math.pow(10, 18)).toString();
-        const feeAmp = 10;
 
         poolFactory = await PoolFactory.deployed();
-        await poolFactory.newPool(vaultAddress, web3.utils.keccak256('x5Repricer'), baseFee, maxFee, feeAmp, { from: CONTRACT_ADMIN_ACCOUNT });
+        await poolFactory.newPool(vaultAddress, web3.utils.keccak256('x5Repricer'), 0, 0, 0, { from: CONTRACT_ADMIN_ACCOUNT });
         const lastPoolIndex = await poolFactory.getLastPoolIndex.call();
         console.log('Pool created index ' + lastPoolIndex);
         poolAddress = await poolFactory.getPool.call(lastPoolIndex);
@@ -167,13 +164,26 @@ contract('Integration', (accounts) => {
         // Mint Derivatives
         await vaultContract.mint(bn(balancePrimary).times(4).times(COLLATERAL_BONE).integerValue(), { from: CONTRACT_ADMIN_ACCOUNT });
 
+        console.log('Set Pool Fee');
+        const baseFee = (0.005 * Math.pow(10, 18)).toString();
+        const maxFee = (0.25 * Math.pow(10, 18)).toString();
+        const feeAmp = 10;
+        await poolContract.setFeeParams(
+          baseFee,
+          maxFee,
+          feeAmp,
+          feeAmp,
+          { from: CONTRACT_ADMIN_ACCOUNT}
+        );
+
         console.log('Finalize Pool');
         // 2. Finalize Pool
 
         const qMin = (1 * Math.pow(10, 6)).toString();
         const pMin = (0.01 * Math.pow(10, 18)).toString();
         const exposureLimit = (0.2 * Math.pow(10, 18)).toString();
-        const volatility = (1 * Math.pow(10, 18)).toString();
+        const volatility1 = (1 * Math.pow(10, 18)).toString();
+        const volatility2 = (1 * Math.pow(10, 18)).toString();
 
         await primaryToken.methods
         .approve(poolContract.address, MAX)
@@ -189,9 +199,11 @@ contract('Integration', (accounts) => {
           bn(balanceComplement).times(COLLATERAL_BONE),
           bn(leverageComplement).times(BONE),
           exposureLimit,
-          volatility,
+          exposureLimit,
           pMin,
           qMin,
+          volatility1,
+          volatility2,
           { from: CONTRACT_ADMIN_ACCOUNT}
         );
 
@@ -291,8 +303,8 @@ contract('Integration', (accounts) => {
             );
 
             poolTokenData = await getPoolTokenData(poolView, poolContract);
-            assert.equal(bn(poolTokenData['primaryBalance']).div(COLLATERAL_BONE).toString(), bn('997.729364').toString());
-            assert.equal(bn(poolTokenData['primaryLeverage']).div(BONE).toString(), bn('1.100227580352140463').toString());
+            assert.equal(bn(poolTokenData['primaryBalance']).div(COLLATERAL_BONE).toString(), bn('997.754006').toString());
+            assert.equal(bn(poolTokenData['primaryLeverage']).div(BONE).toString(), bn('1.100225104984444432').toString());
 
             assert.equal(bn(poolTokenData['complementBalance']).div(COLLATERAL_BONE).toString(), bn( '1001.93426').toString());
             assert.equal(bn(poolTokenData['complementLeverage']).div(BONE).toString(), bn( '0.900193052586104801').toString());
@@ -788,8 +800,8 @@ contract('Integration', (accounts) => {
             );
 
             const poolTokenData = await getPoolTokenData(poolView, poolContract);
-            assert.equal(bn(poolTokenData['primaryBalance']).div(COLLATERAL_BONE).toString(), bn('74.644887').toString());
-            assert.equal(bn(poolTokenData['primaryLeverage']).div(BONE).toString(), bn('3.500429520376928161').toString());
+            assert.equal(bn(poolTokenData['primaryBalance']).div(COLLATERAL_BONE).toString(), bn('74.699548').toString());
+            assert.equal(bn(poolTokenData['primaryLeverage']).div(BONE).toString(), bn('3.49859984427215008').toString());
 
             assert.equal(bn(poolTokenData['complementBalance']).div(COLLATERAL_BONE).toString(), bn( '110.175782').toString());
             assert.equal(bn(poolTokenData['complementLeverage']).div(BONE).toString(), bn( '0.366877069227427857').toString());

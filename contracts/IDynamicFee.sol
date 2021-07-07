@@ -22,11 +22,4 @@ interface IDynamicFee {
         int256 _feeAmp,
         int256 _maxFee
     ) external returns (int256 fee, int256 expStart);
-
-    function calcSpotFee(
-        int256 _expStart,
-        uint256 _baseFee,
-        uint256 _feeAmp,
-        uint256 _maxFee
-    ) external returns (uint256);
 }

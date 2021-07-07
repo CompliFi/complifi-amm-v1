@@ -22,14 +22,8 @@ contract TPool is Pool {
         address _derivativeVault,
         address _dynamicFee,
         address _repricer,
-        uint256 _baseFee,
-        uint256 _maxFee,
-        uint256 _feeAmp,
         address _controller
-    )
-        public
-        Pool(_derivativeVault, _dynamicFee, _repricer, _baseFee, _maxFee, _feeAmp, _controller)
-    {}
+    ) public Pool(_derivativeVault, _dynamicFee, _repricer, _controller) {}
 
     function resetTokenRecordTo(
         address token,
@@ -43,6 +37,7 @@ contract TPool is Pool {
 
     function turnOffRepricing() external {
         _repricing = false;
+        upperBoundary = getDerivativeDenomination() * BONE;
     }
 
     function reprice() internal override {

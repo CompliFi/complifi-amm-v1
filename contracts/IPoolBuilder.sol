@@ -8,6 +8,7 @@ interface IPoolBuilder {
         address _derivativeVault,
         address _feeCalculator,
         address _repricer,
+        //TODO: remove params when a new factory is deploying
         uint256 _baseFee,
         uint256 _maxFee,
         uint256 _feeAmp

@@ -61,6 +61,13 @@ contract Pool is Ownable, Pausable, Bronze, Token, Math, TokenMetadataGenerator 
         int256 liveUnderlingValue
     );
 
+    event LOG_SET_FEE_PARAMS(
+        uint256 baseFee,
+        uint256 maxFee,
+        uint256 feeAmpPrimary,
+        uint256 feeAmpComplement
+    );
+
     event LOG_CALL(bytes4 indexed sig, address indexed caller, bytes data) anonymous;
 
     modifier _logs_() {
@@ -106,15 +113,19 @@ contract Pool is Ownable, Pausable, Bronze, Token, Math, TokenMetadataGenerator 
     mapping(address => Record) internal _records;
 
     uint256 public repricingBlock;
+    uint256 public upperBoundary;
 
     uint256 public baseFee;
-    uint256 public feeAmp;
+    uint256 public feeAmpPrimary;
+    uint256 public feeAmpComplement;
     uint256 public maxFee;
 
     uint256 public pMin;
     uint256 public qMin;
-    uint256 public exposureLimit;
-    uint256 public volatility;
+    uint256 public exposureLimitPrimary;
+    uint256 public exposureLimitComplement;
+    uint256 public repricerParam1;
+    uint256 public repricerParam2;
 
     IVault public derivativeVault;
     IDynamicFee public dynamicFee;
@@ -124,9 +135,6 @@ contract Pool is Ownable, Pausable, Bronze, Token, Math, TokenMetadataGenerator 
         address _derivativeVault,
         address _dynamicFee,
         address _repricer,
-        uint256 _baseFee,
-        uint256 _maxFee,
-        uint256 _feeAmp,
         address _controller
     ) public {
         require(_derivativeVault != address(0), 'NOT_D_VAULT');
@@ -137,10 +145,6 @@ contract Pool is Ownable, Pausable, Bronze, Token, Math, TokenMetadataGenerator 
 
         require(_repricer != address(0), 'NOT_REPRICER');
         repricer = IRepricer(_repricer);
-
-        baseFee = _baseFee;
-        feeAmp = _feeAmp;
-        maxFee = _maxFee;
 
         require(_controller != address(0), 'NOT_CONTROLLER');
         controller = _controller;
@@ -183,25 +187,48 @@ contract Pool is Ownable, Pausable, Bronze, Token, Math, TokenMetadataGenerator 
         return _records[token].balance;
     }
 
+    function setFeeParams(
+        uint256 _baseFee,
+        uint256 _maxFee,
+        uint256 _feeAmpPrimary,
+        uint256 _feeAmpComplement
+    ) external _logs_ _lock_ onlyLiveDerivative {
+        require(!_finalized, 'IS_FINALIZED');
+        require(msg.sender == controller, 'NOT_CONTROLLER');
+
+        baseFee = _baseFee;
+        maxFee = _maxFee;
+        feeAmpPrimary = _feeAmpPrimary;
+        feeAmpComplement = _feeAmpComplement;
+
+        emit LOG_SET_FEE_PARAMS(_baseFee, _maxFee, _feeAmpPrimary, _feeAmpComplement);
+    }
+
     function finalize(
         uint256 _primaryBalance,
         uint256 _primaryLeverage,
         uint256 _complementBalance,
         uint256 _complementLeverage,
-        uint256 _exposureLimit,
-        uint256 _volatility,
+        uint256 _exposureLimitPrimary,
+        uint256 _exposureLimitComplement,
         uint256 _pMin,
-        uint256 _qMin
+        uint256 _qMin,
+        uint256 _repricerParam1,
+        uint256 _repricerParam2
     ) external _logs_ _lock_ onlyLiveDerivative {
         require(!_finalized, 'IS_FINALIZED');
         require(msg.sender == controller, 'NOT_CONTROLLER');
 
         require(_primaryBalance == _complementBalance, 'NOT_SYMMETRIC');
 
+        require(baseFee > 0, 'NOT_SET_FEE_PARAMS');
+
         pMin = _pMin;
         qMin = _qMin;
-        exposureLimit = _exposureLimit;
-        volatility = _volatility;
+        exposureLimitPrimary = _exposureLimitPrimary;
+        exposureLimitComplement = _exposureLimitComplement;
+        repricerParam1 = _repricerParam1;
+        repricerParam2 = _repricerParam2;
 
         _finalized = true;
 
@@ -298,46 +325,51 @@ contract Pool is Ownable, Pausable, Bronze, Token, Math, TokenMetadataGenerator 
         Record storage primaryRecord = _records[_getPrimaryDerivativeAddress()];
         Record storage complementRecord = _records[_getComplementDerivativeAddress()];
 
-        uint256[2] memory primaryParams = [primaryRecord.balance, primaryRecord.leverage];
-        uint256[2] memory complementParams = [complementRecord.balance, complementRecord.leverage];
-
+        int256 estPricePrimary;
+        int256 estPriceComplement;
+        uint256 estPrice;
         (
-            uint256 newPrimaryLeverage,
-            uint256 newComplementLeverage,
-            int256 estPricePrimary,
-            int256 estPriceComplement
+            estPricePrimary,
+            estPriceComplement,
+            estPrice,
+            upperBoundary
         ) =
             repricer.reprice(
-                pMin,
-                int256(volatility),
                 derivativeVault,
-                primaryParams,
-                complementParams,
-                derivativeVault.underlyingStarts(0)
+                pMin,
+                int256(repricerParam1),
+                int256(repricerParam2)
             );
+
+        uint256 primaryRecordLeverageBefore = primaryRecord.leverage;
+        uint256 complementRecordLeverageBefore = complementRecord.leverage;
+
+        uint256 leveragesMultiplied = mul(primaryRecordLeverageBefore, complementRecordLeverageBefore);
+        primaryRecord.leverage = uint256(
+            repricer.sqrtWrapped(int256(div(mul(leveragesMultiplied, mul(complementRecord.balance, estPrice)), primaryRecord.balance)))
+        );
+        complementRecord.leverage = div(leveragesMultiplied, primaryRecord.leverage);
 
         emit LOG_REPRICE(
             repricingBlock,
-            primaryParams[0],
-            complementParams[0],
-            primaryParams[1],
-            complementParams[1],
-            newPrimaryLeverage,
-            newComplementLeverage,
+            primaryRecord.balance,
+            complementRecord.balance,
+            primaryRecordLeverageBefore,
+            complementRecordLeverageBefore,
+            primaryRecord.leverage,
+            complementRecord.leverage,
             estPricePrimary,
             estPriceComplement,
             derivativeVault.underlyingStarts(0)
         );
-
-        primaryRecord.leverage = newPrimaryLeverage;
-        complementRecord.leverage = newComplementLeverage;
     }
 
     function calcFee(
         Record memory inRecord,
         uint256 tokenAmountIn,
         Record memory outRecord,
-        uint256 tokenAmountOut
+        uint256 tokenAmountOut,
+        uint256 feeAmp
     ) internal returns (uint256 fee, int256 expStart) {
         int256 ifee;
         (ifee, expStart) = dynamicFee.calc(
@@ -366,7 +398,13 @@ contract Pool is Ownable, Pausable, Bronze, Token, Math, TokenMetadataGenerator 
         Record storage inRecord = _records[tokenIn];
         Record storage outRecord = _records[tokenOut];
 
-        requireBoundaryConditions(inRecord, tokenAmountIn, outRecord, tokenAmountOut);
+        requireBoundaryConditions(
+            inRecord,
+            tokenAmountIn,
+            outRecord,
+            tokenAmountOut,
+            _getPrimaryDerivativeAddress() == tokenIn ? exposureLimitPrimary : exposureLimitComplement
+        );
 
         updateLeverages(inRecord, tokenAmountIn, outRecord, tokenAmountOut);
 
@@ -376,12 +414,7 @@ contract Pool is Ownable, Pausable, Bronze, Token, Math, TokenMetadataGenerator 
         spotPriceAfter = calcSpotPrice(
             getLeveragedBalance(inRecord),
             getLeveragedBalance(outRecord),
-            dynamicFee.calcSpotFee(
-                calcExpStart(int256(inRecord.balance), int256(outRecord.balance)),
-                baseFee,
-                feeAmp,
-                maxFee
-            )
+            0
         );
 
         require(spotPriceAfter >= spotPriceBefore, 'MATH_APPROX');
@@ -441,13 +474,19 @@ contract Pool is Ownable, Pausable, Bronze, Token, Math, TokenMetadataGenerator 
 
         uint256 fee;
         int256 expStart;
-        (fee, expStart) = calcFee(inRecord, tokenAmountIn, outRecord, tokenAmountOut);
+        (fee, expStart) = calcFee(
+            inRecord,
+            tokenAmountIn,
+            outRecord,
+            tokenAmountOut,
+            _getPrimaryDerivativeAddress() == tokenIn ? feeAmpPrimary : feeAmpComplement
+        );
 
         uint256 spotPriceBefore =
             calcSpotPrice(
                 getLeveragedBalance(inRecord),
                 getLeveragedBalance(outRecord),
-                dynamicFee.calcSpotFee(expStart, baseFee, feeAmp, maxFee)
+                0
             );
 
         tokenAmountOut = calcOutGivenIn(
@@ -468,71 +507,77 @@ contract Pool is Ownable, Pausable, Bronze, Token, Math, TokenMetadataGenerator 
         );
     }
 
-    // Method temporary is not available for external usage.
-    function swapExactAmountOut(
-        address tokenIn,
-        uint256 maxAmountIn,
-        address tokenOut,
-        uint256 tokenAmountOut
-    )
-        private
-        _logs_
-        _lock_
-        whenNotPaused
-        onlyFinalized
-        onlyLiveDerivative
-        returns (uint256 tokenAmountIn, uint256 spotPriceAfter)
-    {
-        require(tokenIn != tokenOut, 'SAME_TOKEN');
-        require(tokenAmountOut >= qMin, 'MIN_TOKEN_OUT');
-
-        reprice();
-
-        Record memory inRecord = _records[tokenIn];
-        Record memory outRecord = _records[tokenOut];
-
-        require(
-            tokenAmountOut <=
-                mul(min(getLeveragedBalance(outRecord), outRecord.balance), MAX_OUT_RATIO),
-            'MAX_OUT_RATIO'
-        );
-
-        tokenAmountIn = calcInGivenOut(
-            getLeveragedBalance(inRecord),
-            getLeveragedBalance(outRecord),
-            tokenAmountOut,
-            0
-        );
-
-        uint256 fee;
-        int256 expStart;
-        (fee, expStart) = calcFee(inRecord, tokenAmountIn, outRecord, tokenAmountOut);
-
-        uint256 spotPriceBefore =
-            calcSpotPrice(
-                getLeveragedBalance(inRecord),
-                getLeveragedBalance(outRecord),
-                dynamicFee.calcSpotFee(expStart, baseFee, feeAmp, maxFee)
-            );
-
-        tokenAmountIn = calcInGivenOut(
-            getLeveragedBalance(inRecord),
-            getLeveragedBalance(outRecord),
-            tokenAmountOut,
-            fee
-        );
-
-        require(tokenAmountIn <= maxAmountIn, 'LIMIT_IN');
-
-        spotPriceAfter = performSwap(
-            tokenIn,
-            tokenAmountIn,
-            tokenOut,
-            tokenAmountOut,
-            spotPriceBefore,
-            fee
-        );
-    }
+//    // Method temporary is not available for external usage.
+//    function swapExactAmountOut(
+//        address tokenIn,
+//        uint256 maxAmountIn,
+//        address tokenOut,
+//        uint256 tokenAmountOut
+//    )
+//        private
+//        _logs_
+//        _lock_
+//        whenNotPaused
+//        onlyFinalized
+//        onlyLiveDerivative
+//        returns (uint256 tokenAmountIn, uint256 spotPriceAfter)
+//    {
+//        require(tokenIn != tokenOut, 'SAME_TOKEN');
+//        require(tokenAmountOut >= qMin, 'MIN_TOKEN_OUT');
+//
+//        reprice();
+//
+//        Record memory inRecord = _records[tokenIn];
+//        Record memory outRecord = _records[tokenOut];
+//
+//        require(
+//            tokenAmountOut <=
+//                mul(min(getLeveragedBalance(outRecord), outRecord.balance), MAX_OUT_RATIO),
+//            'MAX_OUT_RATIO'
+//        );
+//
+//        tokenAmountIn = calcInGivenOut(
+//            getLeveragedBalance(inRecord),
+//            getLeveragedBalance(outRecord),
+//            tokenAmountOut,
+//            0
+//        );
+//
+//        uint256 fee;
+//        int256 expStart;
+//        (fee, expStart) = calcFee(
+//            inRecord,
+//            tokenAmountIn,
+//            outRecord,
+//            tokenAmountOut,
+//            _getPrimaryDerivativeAddress() == tokenIn ? feeAmpPrimary : feeAmpComplement
+//        );
+//
+//        uint256 spotPriceBefore =
+//            calcSpotPrice(
+//                getLeveragedBalance(inRecord),
+//                getLeveragedBalance(outRecord),
+//                0
+//            );
+//
+//        tokenAmountIn = calcInGivenOut(
+//            getLeveragedBalance(inRecord),
+//            getLeveragedBalance(outRecord),
+//            tokenAmountOut,
+//            fee
+//        );
+//
+//        require(tokenAmountIn <= maxAmountIn, 'LIMIT_IN');
+//
+//        spotPriceAfter = performSwap(
+//            tokenIn,
+//            tokenAmountIn,
+//            tokenOut,
+//            tokenAmountOut,
+//            spotPriceBefore,
+//            fee
+//        );
+//    }
 
     function getLeveragedBalance(Record memory r) internal pure returns (uint256) {
         return mul(r.balance, r.leverage);
@@ -542,14 +587,14 @@ contract Pool is Ownable, Pausable, Bronze, Token, Math, TokenMetadataGenerator 
         Record storage inToken,
         uint256 tokenAmountIn,
         Record storage outToken,
-        uint256 tokenAmountOut
+        uint256 tokenAmountOut,
+        uint exposureLimit
     ) internal view {
         require(sub(getLeveragedBalance(outToken), tokenAmountOut) > qMin, 'BOUNDARY_LEVERAGED');
         require(sub(outToken.balance, tokenAmountOut) > qMin, 'BOUNDARY_NON_LEVERAGED');
 
-        uint256 denomination = getDerivativeDenomination() * BONE;
-        uint256 lowerBound = div(pMin, sub(denomination, pMin));
-        uint256 upperBound = div(sub(denomination, pMin), pMin);
+        uint256 lowerBound = div(pMin, sub(upperBoundary, pMin));
+        uint256 upperBound = div(sub(upperBoundary, pMin), pMin);
         uint256 value =
             div(
                 add(getLeveragedBalance(inToken), tokenAmountIn),
@@ -559,15 +604,17 @@ contract Pool is Ownable, Pausable, Bronze, Token, Math, TokenMetadataGenerator 
         require(lowerBound < value, 'BOUNDARY_LOWER');
         require(value < upperBound, 'BOUNDARY_UPPER');
 
-        uint256 numerator;
-        (numerator, ) = subSign(
+        (uint256 numerator, bool sign) = subSign(
             add(add(inToken.balance, tokenAmountIn), tokenAmountOut),
             outToken.balance
         );
 
-        uint256 denominator =
+        if(!sign) {
+            uint256 denominator =
             sub(add(add(inToken.balance, tokenAmountIn), outToken.balance), tokenAmountOut);
-        require(div(numerator, denominator) < exposureLimit, 'BOUNDARY_EXPOSURE');
+
+            require(div(numerator, denominator) < exposureLimit, 'BOUNDARY_EXPOSURE');
+        }
     }
 
     function updateLeverages(

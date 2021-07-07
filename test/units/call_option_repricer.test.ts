@@ -14,7 +14,7 @@ import Vault from '../abi/Vault.json';
 import Oracle from '../abi/Oracle.json';
 import DerivativeSpecification from '../abi/DerivativeSpecification.json';
 
-import { X5Repricer } from '../../typechain/X5Repricer';
+import { CallOptionRepricer } from '../../typechain/CallOptionRepricer';
 
 const { expect } = chai;
 
@@ -67,20 +67,23 @@ const getBlockTime = async (provider: any) => {
     return block.timestamp;
 };
 
-describe('x5Repricer', () => {
-    let repricer: X5Repricer;
+describe('CallOptionRepricer', () => {
+    let repricer: CallOptionRepricer;
 
     beforeEach(async () => {
         const signers = await ethers.getSigners();
-        const x5RepricerFactory = await ethers.getContractFactory('x5Repricer', signers[0]);
-        repricer = (await x5RepricerFactory.deploy()) as X5Repricer;
+        const CallOptionRepricerFactory = await ethers.getContractFactory(
+            'CallOptionRepricer',
+            signers[0]
+        );
+        repricer = (await CallOptionRepricerFactory.deploy()) as CallOptionRepricer;
         await repricer.deployed();
         expect(repricer.address).to.properAddress;
     });
 
     it('check read params', async () => {
         await expect(await repricer.isRepricer()).to.be.true;
-        await expect(await repricer.symbol()).to.be.equal('x5Repricer');
+        await expect(await repricer.symbol()).to.be.equal('CallOptionRepricer');
     });
 
     it('reprice with 1% change', async () => {
@@ -88,6 +91,7 @@ describe('x5Repricer', () => {
         const settledTime = currentTime + 30 * 24 * 60 * 60;
         const pMin = 0.01;
         const volatility = 1;
+        const strike = 1000;
 
         const liveUnderlingValue = 1000;
         const change = 0.01;
@@ -104,12 +108,12 @@ describe('x5Repricer', () => {
             vault,
             (pMin * Math.pow(10, 18)).toString(),
             (volatility * Math.pow(10, 18)).toString(),
-            (volatility * Math.pow(10, 18)).toString()
+            strike.toString()
         );
 
-        await expect(result['estPrice']).to.be.equal('1136157922950685594');
-        await expect(result['estPricePrimary']).to.be.equal('936260366573174526');
-        await expect(result['estPriceComplement']).to.be.equal('1063739633426825474');
+        await expect(result['estPrice']).to.be.equal('7443338939939257256');
+        await expect(result['estPricePrimary']).to.be.equal('119620923331933196450');
+        await expect(result['estPriceComplement']).to.be.equal('890379076668066803550');
     });
 
     it('reprice with 10% change', async () => {
@@ -117,6 +121,7 @@ describe('x5Repricer', () => {
         const settledTime = currentTime + 30 * 24 * 60 * 60;
         const pMin = 0.01;
         const volatility = 1;
+        const strike = 1000;
 
         const liveUnderlingValue = 1000;
         const change = 0.1;
@@ -133,10 +138,12 @@ describe('x5Repricer', () => {
             vault,
             (pMin * Math.pow(10, 18)).toString(),
             (volatility * Math.pow(10, 18)).toString(),
-            (volatility * Math.pow(10, 18)).toString()
+            strike.toString()
         );
 
-        await expect(result['estPrice']).to.be.equal('732222960096940403');
+        await expect(result['estPrice']).to.be.equal('5243464446571394093');
+        await expect(result['estPricePrimary']).to.be.equal('176184233835761858900');
+        await expect(result['estPriceComplement']).to.be.equal('923815766164238141100');
     });
 
     it('reprice with 20% change', async () => {
@@ -144,6 +151,7 @@ describe('x5Repricer', () => {
         const settledTime = currentTime + 30 * 24 * 60 * 60;
         const pMin = 0.01;
         const volatility = 1;
+        const strike = 1000;
 
         const liveUnderlingValue = 1000;
         const change = 0.2;
@@ -160,10 +168,12 @@ describe('x5Repricer', () => {
             vault,
             (pMin * Math.pow(10, 18)).toString(),
             (volatility * Math.pow(10, 18)).toString(),
-            (volatility * Math.pow(10, 18)).toString()
+            strike.toString()
         );
 
-        await expect(result['estPrice']).to.be.equal('464512169127514537');
+        await expect(result['estPrice']).to.be.equal('3806489314337670194');
+        await expect(result['estPricePrimary']).to.be.equal('249662471197100517400');
+        await expect(result['estPriceComplement']).to.be.equal('950337528802899482600');
     });
 
     it('reprice with 100% change', async () => {
@@ -171,6 +181,7 @@ describe('x5Repricer', () => {
         const settledTime = currentTime + 30 * 24 * 60 * 60;
         const pMin = 0.01;
         const volatility = 1;
+        const strike = 1000;
 
         const liveUnderlingValue = 1000;
         const change = 1;
@@ -187,10 +198,12 @@ describe('x5Repricer', () => {
             vault,
             (pMin * Math.pow(10, 18)).toString(),
             (volatility * Math.pow(10, 18)).toString(),
-            (volatility * Math.pow(10, 18)).toString()
+            strike.toString()
         );
 
-        await expect(result['estPrice']).to.be.equal('16563347022067024');
+        await expect(result['estPrice']).to.be.equal('997929031258871594');
+        await expect(result['estPricePrimary']).to.be.equal('1001036557709871963000');
+        await expect(result['estPriceComplement']).to.be.equal('998963442290128037000');
     });
 
     it('reprice with -10% change', async () => {
@@ -198,6 +211,7 @@ describe('x5Repricer', () => {
         const settledTime = currentTime + 30 * 24 * 60 * 60;
         const pMin = 0.01;
         const volatility = 1;
+        const strike = 1000;
 
         const liveUnderlingValue = 1000;
         const change = -0.1;
@@ -214,9 +228,11 @@ describe('x5Repricer', () => {
             vault,
             (pMin * Math.pow(10, 18)).toString(),
             (volatility * Math.pow(10, 18)).toString(),
-            (volatility * Math.pow(10, 18)).toString()
+            strike.toString()
         );
 
-        await expect(result['estPrice']).to.be.equal('2067895498755300202');
+        await expect(result['estPrice']).to.be.equal('12749504647926405439');
+        await expect(result['estPricePrimary']).to.be.equal('65456903579121381600');
+        await expect(result['estPriceComplement']).to.be.equal('834543096420878618400');
     });
 });

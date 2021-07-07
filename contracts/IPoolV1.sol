@@ -16,14 +16,12 @@ pragma solidity 0.7.6;
 import './Token.sol';
 import './libs/complifi/IVault.sol';
 
-interface IPool is IERC20 {
+interface IPoolV1 is IERC20 {
     function repricingBlock() external view returns (uint256);
 
     function baseFee() external view returns (uint256);
 
-    function feeAmpPrimary() external view returns (uint256);
-
-    function feeAmpComplement() external view returns (uint256);
+    function feeAmp() external view returns (uint256);
 
     function maxFee() external view returns (uint256);
 
@@ -31,13 +29,9 @@ interface IPool is IERC20 {
 
     function qMin() external view returns (uint256);
 
-    function exposureLimitPrimary() external view returns (uint256);
+    function exposureLimit() external view returns (uint256);
 
-    function exposureLimitComplement() external view returns (uint256);
-
-    function repricerParam1() external view returns (uint256);
-
-    function repricerParam2() external view returns (uint256);
+    function volatility() external view returns (uint256);
 
     function derivativeVault() external view returns (IVault);
 

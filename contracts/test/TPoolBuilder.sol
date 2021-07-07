@@ -11,20 +11,11 @@ contract TPoolBuilder is IPoolBuilder {
         address derivativeVault,
         address feeCalculator,
         address repricer,
-        uint256 baseFee,
-        uint256 maxFee,
-        uint256 feeAmp
+        uint256 _baseFee,
+        uint256 _maxFee,
+        uint256 _feeAmp
     ) public override returns (address) {
-        TPool pool =
-            new TPool(
-                derivativeVault,
-                feeCalculator,
-                repricer,
-                baseFee,
-                maxFee,
-                feeAmp,
-                controller
-            );
+        TPool pool = new TPool(derivativeVault, feeCalculator, repricer, controller);
         pool.transferOwnership(msg.sender);
         return address(pool);
     }

@@ -26,19 +26,6 @@ contract DynamicFee is IDynamicFee, Bronze, Num {
         return ((_inBalance - _outBalance) * iBONE) / (_inBalance + _outBalance);
     }
 
-    function calcSpotFee(
-        int256 _expStart,
-        uint256 _baseFee,
-        uint256 _feeAmp,
-        uint256 _maxFee
-    ) external pure override returns (uint256) {
-        if (_expStart >= 0) {
-            return min(_baseFee + (_feeAmp * uint256(_expStart * _expStart)) / BONE, _maxFee);
-        } else {
-            return _baseFee;
-        }
-    }
-
     function calc(
         int256[3] calldata _inRecord,
         int256[3] calldata _outRecord,
@@ -47,6 +34,7 @@ contract DynamicFee is IDynamicFee, Bronze, Num {
         int256 _maxFee
     ) external pure override returns (int256 fee, int256 expStart) {
         expStart = calcExpStart(_inRecord[0], _outRecord[0]);
+
         int256 _expEnd =
             ((_inRecord[0] - _outRecord[0] + _inRecord[2] + _outRecord[2]) * iBONE) /
                 (_inRecord[0] + _outRecord[0] + _inRecord[2] - _outRecord[2]);
@@ -80,26 +68,16 @@ contract DynamicFee is IDynamicFee, Bronze, Num {
     ) internal pure returns (int256) {
         int256 inBalanceLeveraged = getLeveragedBalance(_inRecord[0], _inRecord[1]);
         int256 tokenAmountIn1 =
-            (inBalanceLeveraged * (_outRecord[0] - _inRecord[0]) * iBONE) /
-                (inBalanceLeveraged + getLeveragedBalance(_outRecord[0], _outRecord[1])) /
-                iBONE;
+            inBalanceLeveraged * (_outRecord[0] - _inRecord[0]) /
+                (inBalanceLeveraged + getLeveragedBalance(_outRecord[0], _outRecord[1]));
+
         int256 inBalanceLeveragedChanged = inBalanceLeveraged + _inRecord[2] * iBONE;
         int256 tokenAmountIn2 =
-            (inBalanceLeveragedChanged *
-                (_inRecord[0] - _outRecord[0] + _inRecord[2] + _outRecord[2]) *
-                iBONE) /
-                (inBalanceLeveragedChanged +
-                    (
-                        (getLeveragedBalance(_outRecord[0], _outRecord[1]) - _outRecord[2] * iBONE)
-                    )) /
-                iBONE;
+            inBalanceLeveragedChanged * (_inRecord[0] - _outRecord[0] + _inRecord[2] + _outRecord[2]) /
+            (inBalanceLeveragedChanged + getLeveragedBalance(_outRecord[0], _outRecord[1]) - _outRecord[2] * iBONE);
 
-        int256 fee = (tokenAmountIn1 * _baseFee) / iBONE;
-        fee =
-            fee +
-            (tokenAmountIn2 * (_baseFee + (_feeAmp * ((_expEnd * _expEnd) / iBONE)) / 3)) /
-            iBONE;
-        return (fee * iBONE) / (tokenAmountIn1 + tokenAmountIn2);
+        return (tokenAmountIn1 * _baseFee + tokenAmountIn2 * (_baseFee + _feeAmp * (_expEnd * _expEnd / iBONE) / 3)) /
+            (tokenAmountIn1 + tokenAmountIn2);
     }
 
     function getLeveragedBalance(int256 _balance, int256 _leverage)

@@ -10,19 +10,19 @@ interface IRepricer {
     function symbol() external pure returns (string memory);
 
     function reprice(
-        uint256 _pMin,
-        int256 _volatility,
         IVault _vault,
-        uint256[2] memory _primary,
-        uint256[2] memory _complement,
-        int256 _liveUnderlingValue
+        uint256 _pMin,
+        int256 _repricerParam1,
+        int256 _repricerParam2
     )
         external
         view
         returns (
-            uint256 newPrimaryLeverage,
-            uint256 newComplementLeverage,
             int256 estPricePrimary,
-            int256 estPriceComplement
+            int256 estPriceComplement,
+            uint256 estPrice,
+            uint256 upperBoundary
         );
+
+    function sqrtWrapped(int256 x) external pure returns (int256);
 }

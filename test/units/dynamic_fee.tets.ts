@@ -29,46 +29,6 @@ describe('DynamicFee', () => {
         expect(dynamicFee.address).to.properAddress;
     });
 
-    it('test calcSpotFee simple', async () => {
-        const result = dynamicFee.calcSpotFee(
-            calculateExpStart(1000, 900).toString(),
-            (baseFee * BONE).toString(),
-            (feeAmp * BONE).toString(),
-            (maxFee * BONE).toString()
-        );
-        expect(await result).to.be.equal('250000000000000000');
-    });
-
-    it('calcSpotFee zero exp start', async () => {
-        const result = dynamicFee.calcSpotFee(
-            calculateExpStart(1000, 1000).toString(),
-            (baseFee * BONE).toString(),
-            (feeAmp * BONE).toString(),
-            (maxFee * BONE).toString()
-        );
-        expect(await result).to.be.equal('50000000000000000');
-    });
-
-    it('calcSpotFee huge balance difference with bigger max fee', async () => {
-        const result = dynamicFee.calcSpotFee(
-            calculateExpStart(1000000, 100).toString(),
-            (baseFee * BONE).toString(),
-            (feeAmp * BONE).toString(),
-            (maxFee * 10 * BONE).toString()
-        );
-        expect(await result).to.be.equal('2500000000000000000');
-    });
-
-    it('calcSpotFee negative balance difference', async () => {
-        const result = dynamicFee.calcSpotFee(
-            calculateExpStart(900, 1000).toString(),
-            (baseFee * BONE).toString(),
-            (feeAmp * BONE).toString(),
-            (maxFee * BONE).toString()
-        );
-        expect(await result).to.be.equal('25000000000000000');
-    });
-
     it('calc test simple', async () => {
         const result = dynamicFee.calc(
             [1000, 1, 100],

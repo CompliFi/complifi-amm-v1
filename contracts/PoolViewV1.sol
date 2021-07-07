@@ -14,11 +14,11 @@
 pragma solidity 0.7.6;
 pragma abicoder v2;
 
-import './IPool.sol';
+import './IPoolV1.sol';
 import './libs/complifi/tokens/IERC20Metadata.sol';
 
 /// @title Reading key data from specified derivative trading Pool
-contract PoolView {
+contract PoolViewV1 {
 
     /// @notice Contains key information about a derivative token
     struct TokenRecord {
@@ -42,17 +42,14 @@ contract PoolView {
         address derivativeVault;
         address dynamicFee;
         address repricer;
-        uint256 exposureLimitPrimary;
-        uint256 exposureLimitComplement;
-        uint256 repricerParam1;
-        uint256 repricerParam2;
+        uint256 exposureLimit;
+        uint256 volatility;
         uint256 pMin;
         uint256 qMin;
         uint8 qMinDecimals;
         uint256 baseFee;
         uint256 maxFee;
-        uint256 feeAmpPrimary;
-        uint256 feeAmpComplement;
+        uint256 feeAmp;
         uint8 decimals;
         bool isPaused;
     }
@@ -73,7 +70,7 @@ contract PoolView {
             Config memory config
         )
     {
-        IPool pool = IPool(_pool);
+        IPoolV1 pool = IPoolV1(_pool);
 
         address _primaryAddress = address(pool.derivativeVault().primaryToken());
         primary = TokenRecord(
@@ -104,17 +101,14 @@ contract PoolView {
             address(pool.derivativeVault()),
             address(pool.dynamicFee()),
             address(pool.repricer()),
-            pool.exposureLimitPrimary(),
-            pool.exposureLimitComplement(),
-            pool.repricerParam1(),
-            pool.repricerParam2(),
+            pool.exposureLimit(),
+            pool.volatility(),
             pool.pMin(),
             pool.qMin(),
             IERC20Metadata(_primaryAddress).decimals(),
             pool.baseFee(),
             pool.maxFee(),
-            pool.feeAmpPrimary(),
-            pool.feeAmpComplement(),
+            pool.feeAmp(),
             IERC20Metadata(_pool).decimals(),
             pool.paused()
         );
@@ -148,7 +142,7 @@ contract PoolView {
             uint8 lpDecimals
         )
     {
-        IPool pool = IPool(_pool);
+        IPoolV1 pool = IPoolV1(_pool);
 
         primary = address(pool.derivativeVault().primaryToken());
         complement = address(pool.derivativeVault().complementToken());
@@ -173,31 +167,25 @@ contract PoolView {
             address derivativeVault,
             address dynamicFee,
             address repricer,
-            uint256 exposureLimitPrimary,
-            uint256 exposureLimitComplement,
-            uint256 repricerParam1,
-            uint256 repricerParam2,
+            uint256 exposureLimit,
+            uint256 volatility,
             uint256 pMin,
             uint256 qMin,
             uint256 baseFee,
             uint256 maxFee,
-            uint256 feeAmpPrimary,
-            uint256 feeAmpComplement
+            uint256 feeAmp
         )
     {
-        IPool pool = IPool(_pool);
+        IPoolV1 pool = IPoolV1(_pool);
         derivativeVault = address(pool.derivativeVault());
         dynamicFee = address(pool.dynamicFee());
         repricer = address(pool.repricer());
         pMin = pool.pMin();
         qMin = pool.qMin();
-        exposureLimitPrimary = pool.exposureLimitPrimary();
-        exposureLimitComplement = pool.exposureLimitComplement();
+        exposureLimit = pool.exposureLimit();
         baseFee = pool.baseFee();
-        feeAmpPrimary = pool.feeAmpPrimary();
-        feeAmpComplement = pool.feeAmpComplement();
+        feeAmp = pool.feeAmp();
         maxFee = pool.maxFee();
-        repricerParam1 = pool.repricerParam1();
-        repricerParam2 = pool.repricerParam2();
+        volatility = pool.volatility();
     }
 }

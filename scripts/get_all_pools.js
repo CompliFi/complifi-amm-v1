@@ -16,7 +16,8 @@ module.exports = async (done) => {
 
     try {
         const poolFactory = await PoolFactory.deployed();
-        const poolView = await PoolView.deployed();
+        const poolViewAddress = "0x8Ebb991245BAbB8083e56d61d6014e366A85b0BC";
+        const poolView = await PoolView.at(poolViewAddress);
 
         const lastPoolIndex = await poolFactory.getLastPoolIndex.call();
 
@@ -31,6 +32,11 @@ module.exports = async (done) => {
             const poolTokenData = await poolView.getPoolTokenData.call(poolAddress);
             console.log(
                 `Primary: ${poolTokenData['primaryBalance']}, ${poolTokenData['primaryLeverage']}; complement:  ${poolTokenData['complementBalance']}, ${poolTokenData['complementLeverage']}; LP: ${poolTokenData['lpTotalSupply']}`
+            );
+
+            const poolConfig = await poolView.getPoolConfig.call(poolAddress);
+            console.log(
+              `repricerParam1: ${poolConfig['repricerParam1']}, repricerParam2: ${poolConfig['repricerParam2']}`
             );
         }
     } catch (e) {
