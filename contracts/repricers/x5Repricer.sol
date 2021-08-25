@@ -21,7 +21,7 @@ contract x5Repricer is IRepricer, Const, Num, NumExtra {
     }
 
     function reprice(
-        IVault _vault,
+        IVaultMinimal _vault,
         uint256 _pMin,
         int256 _repricerParam1,
         int256 _repricerParam2
@@ -53,7 +53,7 @@ contract x5Repricer is IRepricer, Const, Num, NumExtra {
         estPrice = uint256((estPriceComplement * iBONE) / estPricePrimary);
     }
 
-    function getCurrentUnderlingValue(IVault _vault)
+    function getCurrentUnderlingValue(IVaultMinimal _vault)
         internal
         view
         returns (int256 currentUnderlingValue)
@@ -80,7 +80,7 @@ contract x5Repricer is IRepricer, Const, Num, NumExtra {
             (((_currentUnderlingValue - _liveUnderlingValue) * iBONE) / _liveUnderlingValue);
     }
 
-    function calcDenomination(IVault _vault) internal view returns (uint256 denomination) {
+    function calcDenomination(IVaultMinimal _vault) internal view returns (uint256 denomination) {
         denomination =
             _vault.derivativeSpecification().primaryNominalValue() +
             _vault.derivativeSpecification().complementNominalValue();
@@ -106,7 +106,7 @@ contract x5Repricer is IRepricer, Const, Num, NumExtra {
         int256 _strike
     ) internal pure returns (int256) {
         int256 volatilityBySqrtTtm = (_volatility * _ttmSqrt) / iBONE;
-        int256 volatilityByTtm = ((_volatility * _volatility) * _ttm) / (iBONE * iBONE * 2);
+        int256 volatilityByTtm = (((_volatility * _volatility) / iBONE) * _ttm) / (iBONE * 2);
 
         int256 d =
             (((iBONE * iBONE) / volatilityBySqrtTtm) *

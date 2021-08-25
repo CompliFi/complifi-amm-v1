@@ -21,10 +21,10 @@ contract CallOptionRepricer is IRepricer, Const, Num, NumExtra {
     }
 
     function reprice(
-        IVault _vault,
+        IVaultMinimal _vault,
         uint256 _pMin,
         int256 _repricerParam1,
-        int256 _repricerParam2
+        int256 _repricerParam2 //is not used for Call Option
     )
         external
         view
@@ -38,23 +38,26 @@ contract CallOptionRepricer is IRepricer, Const, Num, NumExtra {
     {
         require(address(_vault) != address(0), 'Zero vault');
 
+        uint8 decimals = AggregatorV3Interface(_vault.oracles(0)).decimals();
+
         int256 currentUnderlingValue = getCurrentUnderlingValue(_vault) * iBONE;
-        upperBoundary = uint256(currentUnderlingValue);
+        int256 iUpperBoundary = max(currentUnderlingValue, int256(mul(_pMin * 10 ** decimals, 2)));
 
         (estPricePrimary, estPriceComplement) = calcEstPrices(
             calcEstPricePrimary(
                 currentUnderlingValue,
                 calcTtm(_vault.settleTime()),
                 _repricerParam1,
-                _repricerParam2
+                _vault.underlyingStarts(0)
             ),
-            int256(upperBoundary),
-            int256(_pMin)
+            iUpperBoundary,
+            int256(_pMin * 10 ** decimals)
         );
         estPrice = uint256((estPriceComplement * iBONE) / estPricePrimary);
+        upperBoundary = uint256(iUpperBoundary) / 10 ** decimals;
     }
 
-    function getCurrentUnderlingValue(IVault _vault)
+    function getCurrentUnderlingValue(IVaultMinimal _vault)
         internal
         view
         returns (int256 currentUnderlingValue)
@@ -67,13 +70,6 @@ contract CallOptionRepricer is IRepricer, Const, Num, NumExtra {
 
     function calcTtm(uint256 _settledTimestamp) internal view returns (int256) {
         return ((int256(_settledTimestamp) - int256(block.timestamp)) * iBONE) / 31536000; // 365 * 24 * 3600
-    }
-
-    function calcDenomination(IVault _vault) internal view returns (int256 denomination) {
-        denomination = int256(
-            _vault.derivativeSpecification().primaryNominalValue() +
-                _vault.derivativeSpecification().complementNominalValue()
-        );
     }
 
     function calcEstPricePrimary(
@@ -94,7 +90,7 @@ contract CallOptionRepricer is IRepricer, Const, Num, NumExtra {
         int256 _strike
     ) internal pure returns (int256) {
         int256 volatilityBySqrtTtm = (_volatility * _ttmSqrt) / iBONE;
-        int256 volatilityByTtm = ((_volatility * _volatility) * _ttm) / (iBONE * iBONE * 2);
+        int256 volatilityByTtm = (((_volatility * _volatility) / iBONE) * _ttm) / (iBONE * 2);
 
         int256 d =
             (((iBONE * iBONE) / volatilityBySqrtTtm) *
@@ -122,5 +118,10 @@ contract CallOptionRepricer is IRepricer, Const, Num, NumExtra {
 
     function sqrtWrapped(int256 x) external pure override returns (int256) {
         return sqrt(x);
+    }
+
+    /// @dev Returns the smallest of two numbers
+    function max(int256 a, int256 b) internal pure returns (int256) {
+        return a > b ? a : b;
     }
 }

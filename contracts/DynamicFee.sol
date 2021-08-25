@@ -14,6 +14,7 @@
 pragma solidity 0.7.6;
 pragma experimental ABIEncoderV2;
 
+import './Color.sol';
 import './Num.sol';
 import './IDynamicFee.sol';
 
@@ -42,7 +43,7 @@ contract DynamicFee is IDynamicFee, Bronze, Num {
         if (expStart >= 0) {
             fee =
                 _baseFee +
-                (((_feeAmp) * (spow3(_expEnd) - spow3(expStart))) * iBONE) /
+                (_feeAmp * (spow3(_expEnd) - spow3(expStart))) /
                 (3 * (_expEnd - expStart));
         } else if (_expEnd <= 0) {
             fee = _baseFee;
@@ -76,7 +77,7 @@ contract DynamicFee is IDynamicFee, Bronze, Num {
             inBalanceLeveragedChanged * (_inRecord[0] - _outRecord[0] + _inRecord[2] + _outRecord[2]) /
             (inBalanceLeveragedChanged + getLeveragedBalance(_outRecord[0], _outRecord[1]) - _outRecord[2] * iBONE);
 
-        return (tokenAmountIn1 * _baseFee + tokenAmountIn2 * (_baseFee + _feeAmp * (_expEnd * _expEnd / iBONE) / 3)) /
+        return (tokenAmountIn1 * _baseFee + tokenAmountIn2 * (_baseFee + (_feeAmp * ((_expEnd * _expEnd) / iBONE)) / (3 * iBONE))) /
             (tokenAmountIn1 + tokenAmountIn2);
     }
 

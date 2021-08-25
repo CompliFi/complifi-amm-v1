@@ -49,10 +49,6 @@ interface IPoolV1 is IERC20 {
 
     function getBalance(address token) external view returns (uint256);
 
-    function getController() external view returns (address);
-
-    function setController(address manager) external;
-
     function joinPool(uint256 poolAmountOut, uint256[2] calldata maxAmountsIn) external;
 
     function exitPool(uint256 poolAmountIn, uint256[2] calldata minAmountsOut) external;

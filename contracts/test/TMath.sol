@@ -19,14 +19,6 @@ import '../Num.sol';
 // Contract to wrap internal functions for testing
 
 contract TMath is Math {
-    function calc_toi(uint256 a) external pure returns (uint256) {
-        return toi(a);
-    }
-
-    function calc_floor(uint256 a) external pure returns (uint256) {
-        return floor(a);
-    }
-
     function calc_add(uint256 a, uint256 b) external pure returns (uint256) {
         return add(a, b);
     }
@@ -45,21 +37,5 @@ contract TMath is Math {
 
     function calc_div(uint256 a, uint256 b) external pure returns (uint256) {
         return div(a, b);
-    }
-
-    function calc_powi(uint256 a, uint256 n) external pure returns (uint256) {
-        return powi(a, n);
-    }
-
-    function calc_pow(uint256 base, uint256 exp) external pure returns (uint256) {
-        return pow(base, exp);
-    }
-
-    function calc_powApprox(
-        uint256 base,
-        uint256 exp,
-        uint256 precision
-    ) external pure returns (uint256) {
-        return powApprox(base, exp, precision);
     }
 }

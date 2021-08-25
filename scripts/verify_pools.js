@@ -19,13 +19,10 @@ async function main() {
 
     const Pool = await hre.ethers.getContractFactory('Pool');
 
-    const poolController = '0x7A596C2d3e0f390A212a8Ed47308cf621b5E949C';
+    const protocolOwner = '0x7A596C2d3e0f390A212a8Ed47308cf621b5E949C';
 
     const poolAddresses = [
-        '0x3eAd43ca1ED431446841e75400215937E2a91Acc',
-        '0xbfB68BedFE44E5a27B5b3931e20ab389D5928405',
-        '0x2786f6C09f7732681B857216c07C424a6e47e12a',
-        '0xF9444D2411669E47B1e46760d85C45EAc9694884',
+        '0x798D44D3196F154c8892354FE7f69deb4D5Bf379'
     ];
 
     for (let i = 0; i < poolAddresses.length; i++) {
@@ -35,48 +32,46 @@ async function main() {
         const pool = await Pool.attach(poolAddress);
         console.log('Attached Pool: ', pool.address);
 
-        const derivativeVault = await pool.derivativeVault();
-        const dynamicFee = await pool.dynamicFee();
-        const repricer = await pool.repricer();
-        const baseFee = (await pool.baseFee()).toString();
-        const maxFee = (await pool.maxFee()).toString();
-        const feeAmp = (await pool.feeAmp()).toString();
+        const [
+          derivativeVault, dynamicFee, repricer, controller
+        ] = await Promise.all([
+            pool.derivativeVault(),
+            pool.dynamicFee(),
+            pool.repricer(),
+            pool.controller()
+        ]);
+
+        const poolController = '0x0000000000000000000000000000000000000000' === controller ? protocolOwner : controller;
 
         const params = [
             derivativeVault,
             dynamicFee,
             repricer,
-            baseFee,
-            maxFee,
-            feeAmp,
             poolController,
         ];
 
         console.log(params);
 
-        const paramsEncoded = web3.eth.abi
-            .encodeParameters(
-                ['address', 'address', 'address', 'uint256', 'uint256', 'uint256', 'address'],
-                [derivativeVault, dynamicFee, repricer, baseFee, maxFee, feeAmp, poolController]
-            )
-            .replace('0x', '');
+        // const paramsEncoded = web3.eth.abi
+        //     .encodeParameters(
+        //         ['address', 'address', 'address', 'address'],
+        //         [derivativeVault, dynamicFee, repricer, poolController]
+        //     )
+        //     .replace('0x', '');
+        //
+        // console.log(
+        //     `truffle run verify Pool@${pool.address} --forceConstructorArgs string:${paramsEncoded} --network=matic_mainnet ` //--debug
+        // );
 
-        console.log(
-            `truffle run verify Pool@${pool.address} --forceConstructorArgs string:${paramsEncoded} --network=mainnet --debug`
-        );
-
-        // await hre.run("verify:verify", {
-        //   address: poolAddress,
-        //   constructorArguments: [
-        //     derivativeVault,
-        //     dynamicFee,
-        //     repricer,
-        //     baseFee,
-        //     maxFee,
-        //     feeAmp,
-        //     poolController
-        //   ]
-        // });
+        await hre.run("verify:verify", {
+          address: poolAddress,
+          constructorArguments: [
+            derivativeVault,
+            dynamicFee,
+            repricer,
+            poolController
+          ]
+        });
     }
 }
 

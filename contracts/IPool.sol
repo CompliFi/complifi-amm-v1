@@ -19,6 +19,8 @@ import './libs/complifi/IVault.sol';
 interface IPool is IERC20 {
     function repricingBlock() external view returns (uint256);
 
+    function controller() external view returns (address);
+
     function baseFee() external view returns (uint256);
 
     function feeAmpPrimary() external view returns (uint256);
@@ -49,15 +51,11 @@ interface IPool is IERC20 {
 
     function getNumTokens() external view returns (uint256);
 
-    function getTokens() external view returns (address[] memory tokens);
+    function getTokens() external view returns (address[2] memory tokens);
 
     function getLeverage(address token) external view returns (uint256);
 
     function getBalance(address token) external view returns (uint256);
-
-    function getController() external view returns (address);
-
-    function setController(address manager) external;
 
     function joinPool(uint256 poolAmountOut, uint256[2] calldata maxAmountsIn) external;
 
@@ -71,4 +69,9 @@ interface IPool is IERC20 {
     ) external returns (uint256 tokenAmountOut, uint256 spotPriceAfter);
 
     function paused() external view returns (bool);
+
+    function swappable() external view returns (bool);
+    function setSwappable() external;
+
+    function BONE() external pure returns (uint256);
 }

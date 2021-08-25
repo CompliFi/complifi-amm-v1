@@ -21,5 +21,5 @@ interface IDynamicFee {
         int256 _baseFee,
         int256 _feeAmp,
         int256 _maxFee
-    ) external returns (int256 fee, int256 expStart);
+    ) external pure returns (int256 fee, int256 expStart);
 }

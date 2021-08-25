@@ -37,7 +37,7 @@ contract TPool is Pool {
 
     function turnOffRepricing() external {
         _repricing = false;
-        upperBoundary = getDerivativeDenomination() * BONE;
+        upperBoundary = 2 * BONE;
     }
 
     function reprice() internal override {

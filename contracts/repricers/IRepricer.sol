@@ -2,7 +2,7 @@
 
 pragma solidity 0.7.6;
 
-import '../libs/complifi/IVault.sol';
+import '../libs/complifi/IVaultMinimal.sol';
 
 interface IRepricer {
     function isRepricer() external pure returns (bool);
@@ -10,7 +10,7 @@ interface IRepricer {
     function symbol() external pure returns (string memory);
 
     function reprice(
-        IVault _vault,
+        IVaultMinimal _vault,
         uint256 _pMin,
         int256 _repricerParam1,
         int256 _repricerParam2

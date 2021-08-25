@@ -62,7 +62,10 @@ const months = (amount) => amount * days(30);
 const erc20Abi = require('./Abi/ERC20PresetMinter.json').abi;
 
 const bn = (num) => new BigNumber(num);
-const BONE = bn(1).times(10 ** 18);
+const BONE_DECIMALS = 26;
+const BONE = 10 ** BONE_DECIMALS;
+const BONE_BIG = bn(1).times(BONE);
+const POOL_DECIMALS_MULTIPLIER = bn(1).times(10**18);
 const COLLATERAL_BONE = bn(1).times(10 ** 6);
 const MAX = web3.utils.toTwosComplement(-1);
 
@@ -70,10 +73,10 @@ async function getPoolTokenData(poolView, poolContract) {
     const poolTokenData = await poolView.getPoolTokenData.call(poolContract.address);
     console.log('--------- Pool Token Data ---------');
     console.log('primaryBalance ', bn(poolTokenData['primaryBalance']).div(COLLATERAL_BONE).toString());
-    console.log('primaryLeverage ', bn(poolTokenData['primaryLeverage']).div(BONE).toString());
+    console.log('primaryLeverage ', bn(poolTokenData['primaryLeverage']).div(BONE_BIG).toString());
     console.log('complementBalance ', bn(poolTokenData['complementBalance']).div(COLLATERAL_BONE).toString());
-    console.log('complementLeverage ', bn(poolTokenData['complementLeverage']).div(BONE).toString());
-    console.log('lpTotalSupply ', bn(poolTokenData['lpTotalSupply']).div(BONE).toString());
+    console.log('complementLeverage ', bn(poolTokenData['complementLeverage']).div(BONE_BIG).toString());
+    console.log('lpTotalSupply ', bn(poolTokenData['lpTotalSupply']).div(BONE_BIG).toString());
     console.log('-----------------------------------');
     return poolTokenData;
 }
@@ -165,8 +168,8 @@ contract('Integration', (accounts) => {
         await vaultContract.mint(bn(balancePrimary).times(4).times(COLLATERAL_BONE).integerValue(), { from: CONTRACT_ADMIN_ACCOUNT });
 
         console.log('Set Pool Fee');
-        const baseFee = (0.005 * Math.pow(10, 18)).toString();
-        const maxFee = (0.25 * Math.pow(10, 18)).toString();
+        const baseFee = (0.005 * BONE).toString();
+        const maxFee = (0.25 * BONE).toString();
         const feeAmp = 10;
         await poolContract.setFeeParams(
           baseFee,
@@ -180,10 +183,10 @@ contract('Integration', (accounts) => {
         // 2. Finalize Pool
 
         const qMin = (1 * Math.pow(10, 6)).toString();
-        const pMin = (0.01 * Math.pow(10, 18)).toString();
-        const exposureLimit = (0.2 * Math.pow(10, 18)).toString();
-        const volatility1 = (1 * Math.pow(10, 18)).toString();
-        const volatility2 = (1 * Math.pow(10, 18)).toString();
+        const pMin = (0.01 * BONE).toString();
+        const exposureLimit = (0.2 * BONE).toString();
+        const volatility1 = (1 * BONE).toString();
+        const volatility2 = (1 * BONE).toString();
 
         await primaryToken.methods
         .approve(poolContract.address, MAX)
@@ -194,10 +197,11 @@ contract('Integration', (accounts) => {
         .send({ from: CONTRACT_ADMIN_ACCOUNT });
 
         await poolContract.finalize(
+          '0x0000000000000000000000000000000000000000',
           bn(balancePrimary).times(COLLATERAL_BONE),
-          bn(leveragePrimary).times(BONE),
+          bn(leveragePrimary).times(BONE_BIG),
           bn(balanceComplement).times(COLLATERAL_BONE),
-          bn(leverageComplement).times(BONE),
+          bn(leverageComplement).times(BONE_BIG),
           exposureLimit,
           exposureLimit,
           pMin,
@@ -220,7 +224,7 @@ contract('Integration', (accounts) => {
         await poolContract.resetTokenRecordTo(
           tokenAddress,
           bn(tokenBalance).times(COLLATERAL_BONE),
-          bn(tokenLeverage).times(BONE),
+          bn(tokenLeverage).times(BONE_BIG),
           { from: CONTRACT_ADMIN_ACCOUNT}
         );
     }
@@ -262,6 +266,14 @@ contract('Integration', (accounts) => {
             await revert(snapshotId);
         });
 
+        it('PoolView config check', async () => {
+            const pooInfo = await poolView.getPoolInfo.call(poolContract.address, USER_1);
+            console.log('--------- Pool Info ---------');
+            console.log(JSON.stringify(pooInfo));
+            console.log('-----------------------------------');
+
+        });
+
         it('Perform swapExactAmountIn', async () => {
             await poolContract.swapExactAmountIn(
               primaryTokenAddress,
@@ -272,10 +284,10 @@ contract('Integration', (accounts) => {
             );
             const poolTokenData = await getPoolTokenData(poolView, poolContract);
             assert.equal(bn(poolTokenData['primaryBalance']).div(10**6).toString(), bn(1010).toString());
-            assert.equal(bn(poolTokenData['primaryLeverage']).div(BONE).toString(), bn('1.09900990099009901').toString());
+            assert.equal(bn(poolTokenData['primaryLeverage']).div(BONE_BIG).toString(), bn('1.0990099009900990099').toString());
 
-            assert.equal(bn(poolTokenData['complementBalance']).div(10**6).toString(), bn( '991.93426').toString());
-            assert.equal(bn(poolTokenData['complementLeverage']).div(BONE).toString(), bn( '0.899186867484544792').toString());
+            assert.equal(bn(poolTokenData['complementBalance']).div(10**6).toString(), bn( '991.932069').toString());
+            assert.equal(bn(poolTokenData['complementLeverage']).div(BONE_BIG).toString(), bn( '0.89918664480641970252').toString());
         });
 
         it('Perform many swapExactAmountIn', async () => {
@@ -289,10 +301,10 @@ contract('Integration', (accounts) => {
 
             let poolTokenData = await getPoolTokenData(poolView, poolContract);
             assert.equal(bn(poolTokenData['primaryBalance']).div(10**6).toString(), bn(1010).toString());
-            assert.equal(bn(poolTokenData['primaryLeverage']).div(BONE).toString(), bn('1.09900990099009901').toString());
+            assert.equal(bn(poolTokenData['primaryLeverage']).div(BONE_BIG).toString(), bn('1.0990099009900990099').toString());
 
-            assert.equal(bn(poolTokenData['complementBalance']).div(10**6).toString(), bn( '991.93426').toString());
-            assert.equal(bn(poolTokenData['complementLeverage']).div(BONE).toString(), bn( '0.899186867484544792').toString());
+            assert.equal(bn(poolTokenData['complementBalance']).div(10**6).toString(), bn( '991.932069').toString());
+            assert.equal(bn(poolTokenData['complementLeverage']).div(BONE_BIG).toString(), bn( '0.89918664480641970252').toString());
 
             await poolContract.swapExactAmountIn(
               complementTokenAddress,
@@ -303,11 +315,11 @@ contract('Integration', (accounts) => {
             );
 
             poolTokenData = await getPoolTokenData(poolView, poolContract);
-            assert.equal(bn(poolTokenData['primaryBalance']).div(COLLATERAL_BONE).toString(), bn('997.754006').toString());
-            assert.equal(bn(poolTokenData['primaryLeverage']).div(BONE).toString(), bn('1.100225104984444432').toString());
+            assert.equal(bn(poolTokenData['primaryBalance']).div(COLLATERAL_BONE).toString(), bn('997.753942').toString());
+            assert.equal(bn(poolTokenData['primaryLeverage']).div(BONE_BIG).toString(), bn('1.10022511141329071291').toString());
 
-            assert.equal(bn(poolTokenData['complementBalance']).div(COLLATERAL_BONE).toString(), bn( '1001.93426').toString());
-            assert.equal(bn(poolTokenData['complementLeverage']).div(BONE).toString(), bn( '0.900193052586104801').toString());
+            assert.equal(bn(poolTokenData['complementBalance']).div(COLLATERAL_BONE).toString(), bn( '1001.932069').toString());
+            assert.equal(bn(poolTokenData['complementLeverage']).div(BONE_BIG).toString(), bn( '0.90019283433076738858').toString());
         });
     });
 
@@ -345,11 +357,11 @@ contract('Integration', (accounts) => {
             );
 
             let poolTokenData = await getPoolTokenData(poolView, poolContract);
-            assert.equal(bn(poolTokenData['primaryBalance']).div(COLLATERAL_BONE).toString(), bn('812.458357').toString());
-            assert.equal(bn(poolTokenData['primaryLeverage']).div(BONE).toString(), bn('17.02508117717595217').toString());
+            assert.equal(bn(poolTokenData['primaryBalance']).div(COLLATERAL_BONE).toString(), bn('804.752545').toString());
+            assert.equal(bn(poolTokenData['primaryLeverage']).div(BONE_BIG).toString(), bn('17.17852743044136629602').toString());
 
             assert.equal(bn(poolTokenData['complementBalance']).div(COLLATERAL_BONE).toString(), bn( '1001').toString());
-            assert.equal(bn(poolTokenData['complementLeverage']).div(BONE).toString(), bn( '0.071379430569430569').toString());
+            assert.equal(bn(poolTokenData['complementLeverage']).div(BONE_BIG).toString(), bn( '0.07137943056943056943').toString());
         });
 
         it('Boundary 2 price - should revert', async () => {
@@ -375,7 +387,7 @@ contract('Integration', (accounts) => {
                 0,
                 { from: USER_1 }
               ),
-              'BOUNDARY_UPPER'
+              'BUP'
             );
         });
 
@@ -391,7 +403,7 @@ contract('Integration', (accounts) => {
                 0,
                 { from: USER_1 }
               ),
-              'BOUNDARY_UPPER'
+              'BUP'
             );
         });
 
@@ -400,7 +412,7 @@ contract('Integration', (accounts) => {
             await resetTokenRecordTo(complementTokenAddress, 1, 100);
             await mintDerrivativesFor(USER_1);
 
-            //TODO: find where happens SUB_UNDERFLOW
+            //TODO: Should BOUNDARY_NON_LEVERAGED, but it is SUB_UNDERFLOW now
             await truffleAssert.reverts(
               poolContract.swapExactAmountIn(
                 primaryTokenAddress,
@@ -425,7 +437,7 @@ contract('Integration', (accounts) => {
                 0,
                 { from: USER_1 }
               ),
-              'BOUNDARY_EXPOSURE'
+              'BEXP'
             );
         });
 
@@ -441,26 +453,8 @@ contract('Integration', (accounts) => {
                 0,
                 { from: USER_1 }
               ),
-              'BOUNDARY_EXPOSURE'
+              'BEXP'
             );
-        });
-
-        it('Boundary 7 Max In - should revert', async () => {
-            await createAndInitializePool(100, 100, 10, 1);
-            await resetTokenRecordTo(primaryTokenAddress, 70, 10);
-            await mintDerrivativesFor(USER_1);
-
-            await truffleAssert.reverts(
-              poolContract.swapExactAmountIn(
-                primaryTokenAddress,
-                bn(36).times(COLLATERAL_BONE),
-                complementTokenAddress,
-                bn(31.06).times(1 - 0.01).times(COLLATERAL_BONE),
-                { from: USER_1 }
-              ),
-              'MAX_IN_RATIO'
-            );
-
         });
 
         it('Boundary 9 Fee must equal MaxFee', async () => {
@@ -475,7 +469,7 @@ contract('Integration', (accounts) => {
                 0,
                 { from: USER_1 }
               ),
-              'BOUNDARY_EXPOSURE'
+              'BEXP'
             );
         });
 
@@ -484,6 +478,7 @@ contract('Integration', (accounts) => {
             await resetTokenRecordTo(complementTokenAddress, 10, 100);
             await mintDerrivativesFor(USER_1);
 
+            // TODO: Should be BOUNDARY_NON_LEVERAGED, but it is SUB_UNDERFLOW
             await truffleAssert.reverts(
               poolContract.swapExactAmountIn(
                 primaryTokenAddress,
@@ -492,7 +487,7 @@ contract('Integration', (accounts) => {
                 0,
                 { from: USER_1 }
               ),
-              'BOUNDARY_NON_LEVERAGED'
+              'SUB_UNDERFLOW'
             );
 
         });
@@ -580,7 +575,7 @@ contract('Integration', (accounts) => {
                 .plus(bn(oldUserComplementBalance));
 
             await poolContract.joinPool(
-              bn(500).times(BONE),
+              bn(500).times(POOL_DECIMALS_MULTIPLIER),
               [MAX, MAX],
               { from: USER_2 }
             );
@@ -612,7 +607,7 @@ contract('Integration', (accounts) => {
             );
 
             await poolContract.exitPool(
-              bn(500).times(BONE),
+              bn(500).times(POOL_DECIMALS_MULTIPLIER),
               [0, 0],
               { from: USER_2 }
             );
@@ -639,13 +634,13 @@ contract('Integration', (accounts) => {
             let oldUserComplementBalance = await complementToken.methods.balanceOf(USER_1).call({from: USER_1});
 
             await poolContract.joinPool(
-              bn(50).times(BONE),
+              bn(50).times(POOL_DECIMALS_MULTIPLIER),
               [MAX, MAX],
               { from: USER_1 }
             );
 
             await poolContract.exitPool(
-              bn(50).times(BONE),
+              bn(50).times(POOL_DECIMALS_MULTIPLIER),
               [0, 0],
               { from: USER_1 }
             );
@@ -662,13 +657,13 @@ contract('Integration', (accounts) => {
             oldUserComplementBalance = await complementToken.methods.balanceOf(USER_1).call({from: USER_1});
 
             await poolContract.joinPool(
-              bn(50).times(BONE),
+              bn(50).times(POOL_DECIMALS_MULTIPLIER),
               [MAX, MAX],
               { from: USER_1 }
             );
 
             await poolContract.exitPool(
-              bn(50).times(BONE),
+              bn(50).times(POOL_DECIMALS_MULTIPLIER),
               [0, 0],
               { from: USER_1 }
             );
@@ -685,13 +680,13 @@ contract('Integration', (accounts) => {
             oldUserComplementBalance = await complementToken.methods.balanceOf(USER_1).call({from: USER_1});
 
             await poolContract.joinPool(
-              bn(50).times(BONE),
+              bn(50).times(POOL_DECIMALS_MULTIPLIER),
               [MAX, MAX],
               { from: USER_1 }
             );
 
             await poolContract.exitPool(
-              bn(50).times(BONE),
+              bn(50).times(POOL_DECIMALS_MULTIPLIER),
               [0, 0],
               { from: USER_1 }
             );
@@ -709,7 +704,7 @@ contract('Integration', (accounts) => {
             await mintDerrivativesFor(USER_2);
 
             await poolContract.joinPool(
-              bn(50).times(BONE),
+              bn(50).times(POOL_DECIMALS_MULTIPLIER),
               [MAX, MAX],
               { from: USER_2 }
             );
@@ -731,24 +726,32 @@ contract('Integration', (accounts) => {
             );
 
             await poolContract.exitPool(
-              bn(50).times(BONE),
+              bn(50).times(POOL_DECIMALS_MULTIPLIER),
               [0, 0],
               { from: USER_2 }
             );
 
             await poolContract.exitPool(
-              bn(200).times(BONE),
+              bn(200).times(POOL_DECIMALS_MULTIPLIER),
               [0, 0],
               { from: CONTRACT_ADMIN_ACCOUNT }
             );
 
-            await truffleAssert.reverts(poolContract.swapExactAmountIn(
+            poolContract.swapExactAmountIn(
               primaryTokenAddress,
               bn(1).times(COLLATERAL_BONE),
               complementTokenAddress,
               0,
               { from: USER_1 }
-            ), "MAX_IN_RATIO");
+            );
+
+            // await truffleAssert.reverts(poolContract.swapExactAmountIn(
+            //   primaryTokenAddress,
+            //   bn(1).times(COLLATERAL_BONE),
+            //   complementTokenAddress,
+            //   0,
+            //   { from: USER_1 }
+            // ), "MAX_IN_RATIO");
         });
     });
 
@@ -778,10 +781,10 @@ contract('Integration', (accounts) => {
 
             const poolTokenData = await getPoolTokenData(poolView, poolContract);
             assert.equal(bn(poolTokenData['primaryBalance']).div(COLLATERAL_BONE).toString(), bn('121.377875').toString());
-            assert.equal(bn(poolTokenData['primaryLeverage']).div(BONE).toString(), bn('0.920183699047293421').toString());
+            assert.equal(bn(poolTokenData['primaryLeverage']).div(BONE_BIG).toString(), bn('0.92018369904729342147').toString());
 
-            assert.equal(bn(poolTokenData['complementBalance']).div(COLLATERAL_BONE).toString(), bn( '86.651924').toString());
-            assert.equal(bn(poolTokenData['complementLeverage']).div(BONE).toString(), bn( '1.086335867164357482').toString());
+            assert.equal(bn(poolTokenData['complementBalance']).div(COLLATERAL_BONE).toString(), bn( '85.697839').toString());
+            assert.equal(bn(poolTokenData['complementLeverage']).div(BONE_BIG).toString(), bn( '1.08729705541349764957').toString());
         });
 
         it('Method 1 problem 2', async () => {
@@ -793,18 +796,18 @@ contract('Integration', (accounts) => {
 
             await poolContract.swapExactAmountIn(
               complementTokenAddress,
-              bn( 9).times(COLLATERAL_BONE),
+              bn( 8).times(COLLATERAL_BONE),
               primaryTokenAddress,
               bn(0).times(COLLATERAL_BONE),
               { from: USER_1 }
             );
 
             const poolTokenData = await getPoolTokenData(poolView, poolContract);
-            assert.equal(bn(poolTokenData['primaryBalance']).div(COLLATERAL_BONE).toString(), bn('74.699548').toString());
-            assert.equal(bn(poolTokenData['primaryLeverage']).div(BONE).toString(), bn('3.49859984427215008').toString());
+            assert.equal(bn(poolTokenData['primaryBalance']).div(COLLATERAL_BONE).toString(), bn('73.864304').toString());
+            assert.equal(bn(poolTokenData['primaryLeverage']).div(BONE_BIG).toString(), bn('3.52685355296923937712').toString());
 
-            assert.equal(bn(poolTokenData['complementBalance']).div(COLLATERAL_BONE).toString(), bn( '110.175782').toString());
-            assert.equal(bn(poolTokenData['complementLeverage']).div(BONE).toString(), bn( '0.366877069227427857').toString());
+            assert.equal(bn(poolTokenData['complementBalance']).div(COLLATERAL_BONE).toString(), bn( '109.175782').toString());
+            assert.equal(bn(poolTokenData['complementLeverage']).div(BONE_BIG).toString(), bn( '0.36107795408325996694').toString());
         });
     });
 

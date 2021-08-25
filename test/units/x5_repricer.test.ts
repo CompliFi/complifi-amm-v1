@@ -33,6 +33,7 @@ const mockVault = async (
     await mockDerivativeSpecification.mock.complementNominalValue.returns(1);
 
     const mockOracle = await deployMockContract(wallet, Oracle.abi);
+    await mockOracle.mock.decimals.returns(6);
     await mockOracle.mock.latestRoundData.returns(
         1,
         currentUnderlingValue,

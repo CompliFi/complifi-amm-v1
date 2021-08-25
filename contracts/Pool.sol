@@ -23,9 +23,10 @@ import './Token.sol';
 import './Math.sol';
 import './repricers/IRepricer.sol';
 import './IDynamicFee.sol';
-import './libs/complifi/IVault.sol';
+import './libs/complifi/IVaultMinimal.sol';
 
-contract Pool is Ownable, Pausable, Bronze, Token, Math, TokenMetadataGenerator {
+contract Pool is Ownable, Pausable, Token, Math, TokenMetadataGenerator {
+
     struct Record {
         uint256 leverage;
         uint256 balance;
@@ -68,6 +69,20 @@ contract Pool is Ownable, Pausable, Bronze, Token, Math, TokenMetadataGenerator 
         uint256 feeAmpComplement
     );
 
+    event LOG_FINALIZE(
+        address _swappableController,
+        uint256 _primaryBalance,
+        uint256 _primaryLeverage,
+        uint256 _complementBalance,
+        uint256 _complementLeverage,
+        uint256 _exposureLimitPrimary,
+        uint256 _exposureLimitComplement,
+        uint256 _pMin,
+        uint256 _qMin,
+        uint256 _repricerParam1,
+        uint256 _repricerParam2
+    );
+
     event LOG_CALL(bytes4 indexed sig, address indexed caller, bytes data) anonymous;
 
     modifier _logs_() {
@@ -88,7 +103,17 @@ contract Pool is Ownable, Pausable, Bronze, Token, Math, TokenMetadataGenerator 
     }
 
     modifier onlyFinalized() {
-        require(_finalized, 'NOT_FINALIZED');
+        require(_finalized, 'FIN');
+        _;
+    }
+
+    modifier onlyController() {
+        require(msg.sender == controller, 'CONTR');
+        _;
+    }
+
+    modifier onlySwappable() {
+        require(swappable, 'SWAP');
         _;
     }
 
@@ -103,10 +128,10 @@ contract Pool is Ownable, Pausable, Bronze, Token, Math, TokenMetadataGenerator 
 
     bool private _mutex;
 
-    address private controller; // has CONTROL role
+    address public controller;
 
-    // `finalize` sets `PUBLIC can SWAP`, `PUBLIC can JOIN`
     bool private _finalized;
+    bool public swappable;
 
     uint256 public constant BOUND_TOKENS = 2;
     address[BOUND_TOKENS] private _tokens;
@@ -127,7 +152,7 @@ contract Pool is Ownable, Pausable, Bronze, Token, Math, TokenMetadataGenerator 
     uint256 public repricerParam1;
     uint256 public repricerParam2;
 
-    IVault public derivativeVault;
+    IVaultMinimal public derivativeVault;
     IDynamicFee public dynamicFee;
     IRepricer public repricer;
 
@@ -137,16 +162,16 @@ contract Pool is Ownable, Pausable, Bronze, Token, Math, TokenMetadataGenerator 
         address _repricer,
         address _controller
     ) public {
-        require(_derivativeVault != address(0), 'NOT_D_VAULT');
-        derivativeVault = IVault(_derivativeVault);
+        require(_derivativeVault != address(0));
+        derivativeVault = IVaultMinimal(_derivativeVault);
 
-        require(_dynamicFee != address(0), 'NOT_FEE');
+        require(_dynamicFee != address(0));
         dynamicFee = IDynamicFee(_dynamicFee);
 
-        require(_repricer != address(0), 'NOT_REPRICER');
+        require(_repricer != address(0));
         repricer = IRepricer(_repricer);
 
-        require(_controller != address(0), 'NOT_CONTROLLER');
+        require(_controller != address(0));
         controller = _controller;
 
         string memory settlementDate = formatDate(derivativeVault.settleTime());
@@ -192,9 +217,8 @@ contract Pool is Ownable, Pausable, Bronze, Token, Math, TokenMetadataGenerator 
         uint256 _maxFee,
         uint256 _feeAmpPrimary,
         uint256 _feeAmpComplement
-    ) external _logs_ _lock_ onlyLiveDerivative {
-        require(!_finalized, 'IS_FINALIZED');
-        require(msg.sender == controller, 'NOT_CONTROLLER');
+    ) external _logs_ _lock_ onlyController onlyLiveDerivative {
+        require(!_finalized, 'FIN');
 
         baseFee = _baseFee;
         maxFee = _maxFee;
@@ -205,6 +229,7 @@ contract Pool is Ownable, Pausable, Bronze, Token, Math, TokenMetadataGenerator 
     }
 
     function finalize(
+        address _swappableController,
         uint256 _primaryBalance,
         uint256 _primaryLeverage,
         uint256 _complementBalance,
@@ -215,13 +240,12 @@ contract Pool is Ownable, Pausable, Bronze, Token, Math, TokenMetadataGenerator 
         uint256 _qMin,
         uint256 _repricerParam1,
         uint256 _repricerParam2
-    ) external _logs_ _lock_ onlyLiveDerivative {
-        require(!_finalized, 'IS_FINALIZED');
-        require(msg.sender == controller, 'NOT_CONTROLLER');
+    ) external _logs_ _lock_ onlyController onlyLiveDerivative {
+        require(!_finalized, 'FIN');
 
-        require(_primaryBalance == _complementBalance, 'NOT_SYMMETRIC');
+        require(_primaryBalance == _complementBalance, 'SYM');
 
-        require(baseFee > 0, 'NOT_SET_FEE_PARAMS');
+        require(baseFee > 0, 'FEE');
 
         pMin = _pMin;
         qMin = _qMin;
@@ -240,16 +264,42 @@ contract Pool is Ownable, Pausable, Bronze, Token, Math, TokenMetadataGenerator 
             _complementLeverage
         );
 
-        uint256 initPoolSupply = getDerivativeDenomination() * _primaryBalance;
+        uint256 initPoolSupply = (derivativeVault.derivativeSpecification().primaryNominalValue() +
+        derivativeVault.derivativeSpecification().complementNominalValue()) * _primaryBalance;
 
         uint256 collateralDecimals =
-            uint256(IERC20Metadata(address(derivativeVault.collateralToken())).decimals());
+        uint256(IERC20Metadata(address(derivativeVault.collateralToken())).decimals());
         if (collateralDecimals >= 0 && collateralDecimals < 18) {
             initPoolSupply = initPoolSupply * (10**(18 - collateralDecimals));
         }
 
         _mintPoolShare(initPoolSupply);
         _pushPoolShare(msg.sender, initPoolSupply);
+
+        if(_swappableController == address(0)) {
+            swappable = true;
+            controller = address(0);
+        } else {
+            controller = _swappableController;
+        }
+
+        emit LOG_FINALIZE(
+            _swappableController,
+            _primaryBalance,
+            _primaryLeverage,
+            _complementBalance,
+            _complementLeverage,
+            _exposureLimitPrimary,
+            _exposureLimitComplement,
+            _pMin,
+            _qMin,
+            _repricerParam1,
+            _repricerParam2
+        );
+    }
+
+    function setSwappable() external _logs_ _lock_ onlyController onlyFinalized {
+        swappable = true;
     }
 
     function bind(
@@ -258,8 +308,8 @@ contract Pool is Ownable, Pausable, Bronze, Token, Math, TokenMetadataGenerator 
         uint256 balance,
         uint256 leverage
     ) internal {
-        require(balance >= qMin, 'MIN_BALANCE');
-        require(leverage > 0, 'ZERO_LEVERAGE');
+        require(balance >= qMin, 'BAL');
+        require(leverage > 0, 'LEV');
 
         _records[token] = Record({ leverage: leverage, balance: balance });
 
@@ -276,14 +326,14 @@ contract Pool is Ownable, Pausable, Bronze, Token, Math, TokenMetadataGenerator 
     {
         uint256 poolTotal = totalSupply();
         uint256 ratio = div(poolAmountOut, poolTotal);
-        require(ratio != 0, 'MATH_APPROX');
+        require(ratio != 0, 'APPR');
 
         for (uint256 i = 0; i < BOUND_TOKENS; i++) {
             address token = _tokens[i];
             uint256 bal = _records[token].balance;
-            require(bal > 0, 'NO_BALANCE');
+            require(bal > 0, 'BAL');
             uint256 tokenAmountIn = mul(ratio, bal);
-            require(tokenAmountIn <= maxAmountsIn[i], 'LIMIT_IN');
+            require(tokenAmountIn <= maxAmountsIn[i], 'LIMIN');
             _records[token].balance = add(_records[token].balance, tokenAmountIn);
             emit LOG_JOIN(msg.sender, token, tokenAmountIn);
             _pullUnderlying(token, msg.sender, tokenAmountIn);
@@ -301,7 +351,7 @@ contract Pool is Ownable, Pausable, Bronze, Token, Math, TokenMetadataGenerator 
     {
         uint256 poolTotal = totalSupply();
         uint256 ratio = div(poolAmountIn, poolTotal);
-        require(ratio != 0, 'MATH_APPROX');
+        require(ratio != 0, 'APPR');
 
         _pullPoolShare(msg.sender, poolAmountIn);
         _burnPoolShare(poolAmountIn);
@@ -309,9 +359,9 @@ contract Pool is Ownable, Pausable, Bronze, Token, Math, TokenMetadataGenerator 
         for (uint256 i = 0; i < BOUND_TOKENS; i++) {
             address token = _tokens[i];
             uint256 bal = _records[token].balance;
-            require(bal > 0, 'NO_BALANCE');
+            require(bal > 0, 'BAL');
             uint256 tokenAmountOut = mul(ratio, bal);
-            require(tokenAmountOut >= minAmountsOut[i], 'LIMIT_OUT');
+            require(tokenAmountOut >= minAmountsOut[i], 'LIMOUT');
             _records[token].balance = sub(_records[token].balance, tokenAmountOut);
             emit LOG_EXIT(msg.sender, token, tokenAmountOut);
             _pushUnderlying(token, msg.sender, tokenAmountOut);
@@ -379,7 +429,7 @@ contract Pool is Ownable, Pausable, Bronze, Token, Math, TokenMetadataGenerator 
             int256(feeAmp),
             int256(maxFee)
         );
-        require(ifee > 0, 'BAD_FEE');
+        require(ifee > 0, 'BADFEE');
         fee = uint256(ifee);
     }
 
@@ -417,8 +467,8 @@ contract Pool is Ownable, Pausable, Bronze, Token, Math, TokenMetadataGenerator 
             0
         );
 
-        require(spotPriceAfter >= spotPriceBefore, 'MATH_APPROX');
-        require(spotPriceBefore <= div(tokenAmountIn, tokenAmountOut), 'MATH_APPROX_OTHER');
+        require(spotPriceAfter >= spotPriceBefore, 'APPR');
+        require(spotPriceBefore <= div(tokenAmountIn, tokenAmountOut), 'APPROTHER');
 
         emit LOG_SWAP(
             msg.sender,
@@ -447,23 +497,18 @@ contract Pool is Ownable, Pausable, Bronze, Token, Math, TokenMetadataGenerator 
         _logs_
         _lock_
         whenNotPaused
+        onlySwappable
         onlyFinalized
         onlyLiveDerivative
         returns (uint256 tokenAmountOut, uint256 spotPriceAfter)
     {
-        require(tokenIn != tokenOut, 'SAME_TOKEN');
-        require(tokenAmountIn >= qMin, 'MIN_TOKEN_IN');
+        require(tokenIn != tokenOut, 'SAME');
+        require(tokenAmountIn >= qMin, 'MININ');
 
         reprice();
 
         Record memory inRecord = _records[tokenIn];
         Record memory outRecord = _records[tokenOut];
-
-        require(
-            tokenAmountIn <=
-                mul(min(getLeveragedBalance(inRecord), inRecord.balance), MAX_IN_RATIO),
-            'MAX_IN_RATIO'
-        );
 
         tokenAmountOut = calcOutGivenIn(
             getLeveragedBalance(inRecord),
@@ -495,7 +540,7 @@ contract Pool is Ownable, Pausable, Bronze, Token, Math, TokenMetadataGenerator 
             tokenAmountIn,
             fee
         );
-        require(tokenAmountOut >= minAmountOut, 'LIMIT_OUT');
+        require(tokenAmountOut >= minAmountOut, 'LIMOUT');
 
         spotPriceAfter = performSwap(
             tokenIn,
@@ -506,78 +551,6 @@ contract Pool is Ownable, Pausable, Bronze, Token, Math, TokenMetadataGenerator 
             fee
         );
     }
-
-//    // Method temporary is not available for external usage.
-//    function swapExactAmountOut(
-//        address tokenIn,
-//        uint256 maxAmountIn,
-//        address tokenOut,
-//        uint256 tokenAmountOut
-//    )
-//        private
-//        _logs_
-//        _lock_
-//        whenNotPaused
-//        onlyFinalized
-//        onlyLiveDerivative
-//        returns (uint256 tokenAmountIn, uint256 spotPriceAfter)
-//    {
-//        require(tokenIn != tokenOut, 'SAME_TOKEN');
-//        require(tokenAmountOut >= qMin, 'MIN_TOKEN_OUT');
-//
-//        reprice();
-//
-//        Record memory inRecord = _records[tokenIn];
-//        Record memory outRecord = _records[tokenOut];
-//
-//        require(
-//            tokenAmountOut <=
-//                mul(min(getLeveragedBalance(outRecord), outRecord.balance), MAX_OUT_RATIO),
-//            'MAX_OUT_RATIO'
-//        );
-//
-//        tokenAmountIn = calcInGivenOut(
-//            getLeveragedBalance(inRecord),
-//            getLeveragedBalance(outRecord),
-//            tokenAmountOut,
-//            0
-//        );
-//
-//        uint256 fee;
-//        int256 expStart;
-//        (fee, expStart) = calcFee(
-//            inRecord,
-//            tokenAmountIn,
-//            outRecord,
-//            tokenAmountOut,
-//            _getPrimaryDerivativeAddress() == tokenIn ? feeAmpPrimary : feeAmpComplement
-//        );
-//
-//        uint256 spotPriceBefore =
-//            calcSpotPrice(
-//                getLeveragedBalance(inRecord),
-//                getLeveragedBalance(outRecord),
-//                0
-//            );
-//
-//        tokenAmountIn = calcInGivenOut(
-//            getLeveragedBalance(inRecord),
-//            getLeveragedBalance(outRecord),
-//            tokenAmountOut,
-//            fee
-//        );
-//
-//        require(tokenAmountIn <= maxAmountIn, 'LIMIT_IN');
-//
-//        spotPriceAfter = performSwap(
-//            tokenIn,
-//            tokenAmountIn,
-//            tokenOut,
-//            tokenAmountOut,
-//            spotPriceBefore,
-//            fee
-//        );
-//    }
 
     function getLeveragedBalance(Record memory r) internal pure returns (uint256) {
         return mul(r.balance, r.leverage);
@@ -590,8 +563,8 @@ contract Pool is Ownable, Pausable, Bronze, Token, Math, TokenMetadataGenerator 
         uint256 tokenAmountOut,
         uint exposureLimit
     ) internal view {
-        require(sub(getLeveragedBalance(outToken), tokenAmountOut) > qMin, 'BOUNDARY_LEVERAGED');
-        require(sub(outToken.balance, tokenAmountOut) > qMin, 'BOUNDARY_NON_LEVERAGED');
+        require(sub(getLeveragedBalance(outToken), tokenAmountOut) > qMin, 'BLEV');
+        require(sub(outToken.balance, tokenAmountOut) > qMin, 'BNONLEV');
 
         uint256 lowerBound = div(pMin, sub(upperBoundary, pMin));
         uint256 upperBound = div(sub(upperBoundary, pMin), pMin);
@@ -601,8 +574,8 @@ contract Pool is Ownable, Pausable, Bronze, Token, Math, TokenMetadataGenerator 
                 sub(getLeveragedBalance(outToken), tokenAmountOut)
             );
 
-        require(lowerBound < value, 'BOUNDARY_LOWER');
-        require(value < upperBound, 'BOUNDARY_UPPER');
+        require(lowerBound < value, 'BLOW');
+        require(value < upperBound, 'BUP');
 
         (uint256 numerator, bool sign) = subSign(
             add(add(inToken.balance, tokenAmountIn), tokenAmountOut),
@@ -613,7 +586,7 @@ contract Pool is Ownable, Pausable, Bronze, Token, Math, TokenMetadataGenerator 
             uint256 denominator =
             sub(add(add(inToken.balance, tokenAmountIn), outToken.balance), tokenAmountOut);
 
-            require(div(numerator, denominator) < exposureLimit, 'BOUNDARY_EXPOSURE');
+            require(div(numerator, denominator) < exposureLimit, 'BEXP');
         }
     }
 
@@ -627,19 +600,13 @@ contract Pool is Ownable, Pausable, Bronze, Token, Math, TokenMetadataGenerator 
             sub(getLeveragedBalance(outToken), tokenAmountOut),
             sub(outToken.balance, tokenAmountOut)
         );
-        require(outToken.leverage > 0, 'ZERO_OUT_LEVERAGE');
+        require(outToken.leverage > 0, 'ZOUTLEV');
 
         inToken.leverage = div(
             add(getLeveragedBalance(inToken), tokenAmountIn),
             add(inToken.balance, tokenAmountIn)
         );
-        require(inToken.leverage > 0, 'ZERO_IN_LEVERAGE');
-    }
-
-    function getDerivativeDenomination() internal view returns (uint256 denomination) {
-        denomination =
-            derivativeVault.derivativeSpecification().primaryNominalValue() +
-            derivativeVault.derivativeSpecification().complementNominalValue();
+        require(inToken.leverage > 0, 'ZINLEV');
     }
 
     function _getPrimaryDerivativeAddress() internal view returns (address) {
@@ -701,11 +668,11 @@ contract Pool is Ownable, Pausable, Bronze, Token, Math, TokenMetadataGenerator 
                     revert(0, 0)
                 }
         }
-        require(success, 'TOKEN_TRANSFER_IN_FAILED');
+        require(success, 'TINFAIL');
 
         // Calculate the amount that was *actually* transferred
         uint256 balanceAfter = IERC20(erc20).balanceOf(address(this));
-        require(balanceAfter >= balanceBefore, 'TOKEN_TRANSFER_IN_OVERFLOW');
+        require(balanceAfter >= balanceBefore, 'TINOVER');
         return balanceAfter - balanceBefore; // underflow already checked above, just subtract
     }
 
@@ -739,6 +706,6 @@ contract Pool is Ownable, Pausable, Bronze, Token, Math, TokenMetadataGenerator 
                     revert(0, 0)
                 }
         }
-        require(success, 'TOKEN_TRANSFER_OUT_FAILED');
+        require(success, 'TOUTFAIL');
     }
 }
